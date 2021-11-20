@@ -6,7 +6,7 @@
 [GitHubActionsLink]: https://github.com/Daniel127/RtMidi.Net/actions?query=workflow%3ABuild
 
 [AzureBadgeMaster]: https://dev.azure.com/Daniel127/RtMidi.Net/_apis/build/status/CI-Release?branchName=master
-[AzurePipelineMaster]: https://dev.azure.com/Daniel127/RtMidi.Net/_build/latest?definitionId=9&branchName=master
+[AzurePipelineMaster]: https://dev.azure.com/Daniel127/RtMidi.Net/_build/latest?definitionId=12&branchName=master
 [AzureBadgeDevelop]: https://dev.azure.com/Daniel127/RtMidi.Net/_apis/build/status/CI-Development?branchName=develop
 [AzurePipelineDevelop]: https://dev.azure.com/Daniel127/RtMidi.Net/_build/latest?definitionId=11&branchName=develop
 
