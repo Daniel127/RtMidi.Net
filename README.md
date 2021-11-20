@@ -8,7 +8,7 @@
 [AzureBadgeMaster]: https://dev.azure.com/Daniel127/RtMidi.Net/_apis/build/status/CI-Release?branchName=master
 [AzurePipelineMaster]: https://dev.azure.com/Daniel127/RtMidi.Net/_build/latest?definitionId=9&branchName=master
 [AzureBadgeDevelop]: https://dev.azure.com/Daniel127/RtMidi.Net/_apis/build/status/CI-Development?branchName=develop
-[AzurePipelineDevelop]: https://dev.azure.com/Daniel127/RtMidi.Net/_build/latest?definitionId=10&branchName=develop
+[AzurePipelineDevelop]: https://dev.azure.com/Daniel127/RtMidi.Net/_build/latest?definitionId=11&branchName=develop
 
 [NugetUrl]: https://www.nuget.org/packages/RtMidi.Net
 [NugetBadge]: https://feeds.dev.azure.com/Daniel127/
