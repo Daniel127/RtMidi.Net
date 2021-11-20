@@ -5,8 +5,12 @@ namespace WorkerTest
     public class Worker : BackgroundService
     {
         private readonly ILogger<Worker> _logger;
-        private MidiInputClient _midiInputClient;
+        private MidiInputClient? _midiInputClient;
 
+        /// <summary>
+        /// Constructor
+        /// </summary>
+        /// <param name="logger"></param>
         public Worker(ILogger<Worker> logger)
         {
             _logger = logger;
@@ -16,27 +20,32 @@ namespace WorkerTest
         public override Task StartAsync(CancellationToken cancellationToken)
         {
             var devices = MidiManager.GetAvailableDevices();
-            var device = MidiManager.GetDeviceInfo(0, RtMidi.Net.Enums.MidiDeviceType.Input);
-            _midiInputClient = new MidiInputClient(device);
-            _midiInputClient.OnMessageReceived += MidiClient_OnMessageReceived;
-            _midiInputClient.ActivateMessageReceivedEvent();
-            _midiInputClient.Open();
+            foreach (var d in devices)
+            {
+                _logger.LogInformation($"{d.Port}) {d.Name} - {d.Type}");
+            }
+            if (devices.Any())
+            {
+                //TODO Change device to test
+                var devicePort = 0u;
+                var device = MidiManager.GetDeviceInfo(devicePort, RtMidi.Net.Enums.MidiDeviceType.Input);
+                _midiInputClient = new MidiInputClient(device);
+                _midiInputClient.OnMessageReceived += MidiClient_OnMessageReceived;
+                _midiInputClient.ActivateMessageReceivedEvent();
+                _midiInputClient.Open();
+            }
             return base.StartAsync(cancellationToken);
         }
 
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        protected override Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            await Task.Delay(5000, stoppingToken);
-            //while (!stoppingToken.IsCancellationRequested)
-            //{
-            //    stoppingToken
-            //}
+            return Task.CompletedTask;
         }
 
         public override Task StopAsync(CancellationToken cancellationToken)
         {
-            _midiInputClient.Close();
-            _midiInputClient.Dispose();
+            _midiInputClient?.Close();
+            _midiInputClient?.Dispose();
             return base.StopAsync(cancellationToken);
         }
 
