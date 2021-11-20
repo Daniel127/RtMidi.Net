@@ -1,12 +1,12 @@
 # Status
 [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=rtmidi-dotnet&metric=alert_status)](https://sonarcloud.io/dashboard?id=rtmidi-dotnet) [![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=rtmidi-dotnet&metric=ncloc)](https://sonarcloud.io/dashboard?id=rtmidi-dotnet) [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=rtmidi-dotnet&metric=bugs)](https://sonarcloud.io/dashboard?id=rtmidi-dotnet) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=rtmidi-dotnet&metric=coverage)](https://sonarcloud.io/dashboard?id=rtmidi-dotnet) [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=rtmidi-dotnet&metric=sqale_rating)](https://sonarcloud.io/dashboard?id=rtmidi-dotnet)
 
-[GitHubBadgeMaster]: https://github.com/Daniel127/RtMidi.Net/workflows/Build/badge.svg?branch=master
+[GitHubBadgeMaster]: https://github.com/Daniel127/RtMidi.Net/workflows/Build/badge.svg?branch=main
 [GitHubBadgeDevelop]: https://github.com/Daniel127/RtMidi.Net/workflows/Build/badge.svg?branch=develop
 [GitHubActionsLink]: https://github.com/Daniel127/RtMidi.Net/actions?query=workflow%3ABuild
 
-[AzureBadgeMaster]: https://dev.azure.com/Daniel127/RtMidi.Net/_apis/build/status/CI-Release?branchName=master
-[AzurePipelineMaster]: https://dev.azure.com/Daniel127/RtMidi.Net/_build/latest?definitionId=12&branchName=master
+[AzureBadgeMaster]: https://dev.azure.com/Daniel127/RtMidi.Net/_apis/build/status/CI-Release?branchName=main
+[AzurePipelineMaster]: https://dev.azure.com/Daniel127/RtMidi.Net/_build/latest?definitionId=12&branchName=main
 [AzureBadgeDevelop]: https://dev.azure.com/Daniel127/RtMidi.Net/_apis/build/status/CI-Development?branchName=develop
 [AzurePipelineDevelop]: https://dev.azure.com/Daniel127/RtMidi.Net/_build/latest?definitionId=11&branchName=develop
 
@@ -17,7 +17,7 @@
 
 | Branch | Build | Deployment |
 |:----:|:-------------:|:----:|
-| master | [![Build][GitHubBadgeMaster]][GitHubActionsLink]  [![Build Status][AzureBadgeMaster]][AzurePipelineMaster] | [![Nuget package][NugetBadge]][NugetUrl] |
+| main | [![Build][GitHubBadgeMaster]][GitHubActionsLink]  [![Build Status][AzureBadgeMaster]][AzurePipelineMaster] | [![Nuget package][NugetBadge]][NugetUrl] |
 | develop | [![Build][GitHubBadgeDevelop]][GitHubActionsLink]  [![Build Status][AzureBadgeDevelop]][AzurePipelineDevelop] | N/A |
 
 
