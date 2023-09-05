@@ -1,7 +1,7 @@
 using RtMidi.Net.Enums;
 using RtMidi.Net.InteropServices;
 
-namespace RtMidi.Net;
+namespace RtMidi.Net.Clients;
 
 public class MidiOutputClient : MidiClient
 {
