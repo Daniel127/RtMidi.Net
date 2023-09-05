@@ -1,13 +1,13 @@
 using RtMidi.Net.Enums;
 using RtMidi.Net.InteropServices;
 
-namespace RtMidi.Net;
+namespace RtMidi.Net.Clients;
 
 public abstract class MidiClient : IDisposable
 {
     private readonly MidiDeviceInfo _deviceInfo;
     internal readonly RtMidiBase RtMidiClient;
-    private bool disposedValue;
+    private bool _disposedValue;
 
     internal MidiClient(uint deviceId, RtMidiBase rtMidiClient)
     {
@@ -43,13 +43,13 @@ public abstract class MidiClient : IDisposable
 
     protected virtual void Dispose(bool disposing)
     {
-        if (!disposedValue)
+        if (!_disposedValue)
         {
             if (disposing)
             {
                 RtMidiClient.Dispose();
             }
-            disposedValue = true;
+            _disposedValue = true;
         }
     }
 

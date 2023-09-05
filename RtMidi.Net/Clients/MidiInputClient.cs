@@ -1,8 +1,9 @@
+using System.Diagnostics;
 using RtMidi.Net.Enums;
 using RtMidi.Net.Events;
 using RtMidi.Net.InteropServices;
 
-namespace RtMidi.Net;
+namespace RtMidi.Net.Clients;
 
 public class MidiInputClient : MidiClient
 {
@@ -74,9 +75,39 @@ public class MidiInputClient : MidiClient
 
     public (MidiMessage, TimeSpan) GetMessage()
     {
-        var (messageData, timestamp) = _rtMidiInClient.GetMessage();
-        return (ConvertMessage(messageData), TimeSpan.FromSeconds(timestamp));
+        Stopwatch stopwatch = new();
+        byte[] messageData;
+        stopwatch.Start();
+        do
+        {
+            (messageData, _) = _rtMidiInClient.GetMessage();
+        } while (messageData.Length == 0);
+        stopwatch.Stop();
+        var timestamp = TimeSpan.FromSeconds(stopwatch.Elapsed.TotalSeconds);
+        return (ConvertMessage(messageData), timestamp);
     }
+
+    public async Task<(MidiMessage, TimeSpan)> GetMessageAsync(CancellationToken cancellationToken)
+    {
+        return await Task.Run(() =>
+        {
+            Stopwatch stopwatch = new();
+            byte[] messageData;
+            
+            stopwatch.Start();
+            do
+            {
+                (messageData, _) = _rtMidiInClient.GetMessage();
+            } while (!cancellationToken.IsCancellationRequested && messageData.Length == 0);
+            stopwatch.Stop();
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var timestamp = TimeSpan.FromSeconds(stopwatch.Elapsed.TotalSeconds);
+            return (ConvertMessage(messageData), timestamp);
+        }, cancellationToken);
+    }
+
 
     private static MidiMessage ConvertMessage(IReadOnlyList<byte> message)
     {
