@@ -3,9 +3,15 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RtMidi.Net", "RtMidi.Net\RtMidi.Net.csproj", "{4A4EAB7A-9B1A-4030-B94B-4A5EC19DECBE}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RtMidi.Net", "RtMidi.Net\RtMidi.Net.csproj", "{4A4EAB7A-9B1A-4030-B94B-4A5EC19DECBE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WorkerTest", "WorkerTest\WorkerTest.csproj", "{54B7CA1F-3964-492C-8251-44A5A244D7C8}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WorkerTest", "WorkerTest\WorkerTest.csproj", "{54B7CA1F-3964-492C-8251-44A5A244D7C8}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{19D1F538-EE06-41DD-ABF5-6488D3903B51}"
+	ProjectSection(SolutionItems) = preProject
+		LICENSE.md = LICENSE.md
+		README.md = README.md
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

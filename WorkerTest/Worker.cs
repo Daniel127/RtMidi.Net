@@ -1,4 +1,7 @@
 using RtMidi.Net;
+using RtMidi.Net.Clients;
+using RtMidi.Net.Enums;
+using RtMidi.Net.Events;
 
 namespace WorkerTest
 {
@@ -16,9 +19,9 @@ namespace WorkerTest
             _logger = logger;
         }
 
-
-        public override Task StartAsync(CancellationToken cancellationToken)
+        public override async Task StartAsync(CancellationToken cancellationToken)
         {
+            _logger.LogInformation("Starting");
             var devices = MidiManager.GetAvailableDevices();
             foreach (var d in devices)
             {
@@ -26,39 +29,58 @@ namespace WorkerTest
             }
             if (devices.Any())
             {
-                //TODO Change device to test
-                var devicePort = 0u;
-                var device = MidiManager.GetDeviceInfo(devicePort, RtMidi.Net.Enums.MidiDeviceType.Input);
+                var devicePort = 1u; //TODO Change device to test
+                var device = MidiManager.GetDeviceInfo(devicePort, MidiDeviceType.Input);
                 _midiInputClient = new MidiInputClient(device);
-                _midiInputClient.OnMessageReceived += MidiClient_OnMessageReceived;
-                _midiInputClient.ActivateMessageReceivedEvent();
+                //TODO The event throws an exception after a while, i'm not sure why
+                //_midiInputClient.OnMessageReceived += MidiClient_OnMessageReceived;
+                //_midiInputClient.ActivateMessageReceivedEvent();
                 _midiInputClient.Open();
-            }
-            return base.StartAsync(cancellationToken);
-        }
-
-        protected override Task ExecuteAsync(CancellationToken stoppingToken)
-        {
-            return Task.CompletedTask;
-        }
-
-        public override Task StopAsync(CancellationToken cancellationToken)
-        {
-            _midiInputClient?.Close();
-            _midiInputClient?.Dispose();
-            return base.StopAsync(cancellationToken);
-        }
-
-
-        private void MidiClient_OnMessageReceived(object? sender, RtMidi.Net.Events.MidiMessageReceivedEventArgs args)
-        {
-            if(args.Message is MidiMessageNote message)
-            {
-                _logger.LogInformation($"{message.Note.GetName()} - {message.Type}");
             }
             else
             {
-                _logger.LogInformation($"{args.Message.Type}");
+                var exception = new Exception("No Midi devices found");
+                _logger.LogError(exception, "No Midi devices found");
+                throw exception;
+            }
+
+            await base.StartAsync(cancellationToken);
+        }
+
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            _logger.LogInformation("Executing");
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                var (message, _) = await _midiInputClient!.GetMessageAsync(stoppingToken);
+                OnMessageReceived(message);
+            }
+        }
+
+        public override async Task StopAsync(CancellationToken cancellationToken)
+        {
+            _logger.LogInformation("Stopping");
+            _midiInputClient?.Close();
+            _midiInputClient?.Dispose();
+            await base.StopAsync(cancellationToken);
+        }
+
+        private void MidiClient_OnMessageReceived(object? sender, MidiMessageReceivedEventArgs args)
+        {
+            OnMessageReceived(args.Message);
+        }
+
+        private void OnMessageReceived(MidiMessage midiMessage)
+        {
+            if (midiMessage is MidiMessageNote { Type: MidiMessageType.NoteOn or MidiMessageType.NoteOff } message)
+            {
+                const int offset = 21;
+                var note = message.Note.GetByteRepresentation() - offset;
+                _logger.LogInformation("{noteName} - {messageType}, Note number: {noteNumber}", message.Note.GetName(), message.Type, note);
+            }
+            else
+            {
+                _logger.LogInformation("{messageType}", midiMessage.Type);
             }
         }
     }
