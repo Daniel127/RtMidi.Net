@@ -1,5 +1,5 @@
-using System.Runtime.InteropServices;
 using RtMidi.Net.Enums;
+using System.Runtime.InteropServices;
 
 namespace RtMidi.Net.InteropServices;
 
@@ -121,12 +121,12 @@ internal class RtMidiIn : RtMidiBase
     {
         var size = 1024;
         var messagePtr = Marshal.AllocHGlobal(size);
-        
+
         var timestamp = RtMidiInterop.rtmidi_in_get_message(RtMidiPtr, messagePtr, ref size);
         var message = new byte[size];
         Marshal.Copy(messagePtr, message, 0, size);
         Marshal.FreeHGlobal(messagePtr);
-        
+
         return (message, timestamp);
     }
 

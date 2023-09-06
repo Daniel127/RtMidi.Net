@@ -9,7 +9,7 @@ public class MidiOutputClient : MidiClient
 
     public MidiOutputClient(MidiDeviceInfo deviceInfo) : base(deviceInfo, new RtMidiOut())
     {
-        _rtMidiOutClient = (RtMidiOut) RtMidiClient;
+        _rtMidiOutClient = (RtMidiOut)RtMidiClient;
     }
 
     public void SendMessage(byte[] message)
@@ -64,7 +64,7 @@ public class MidiOutputClient : MidiClient
             },
             MidiMessageType.SystemExclusive when message is MidiMessageSystemExclusive(var data, _) => data,
             //TODO Create Message for TimeCodeQuarterFrame
-            MidiMessageType.TimeCodeQuarterFrame when message is MidiMessageUnknown (var data, _) => data,
+            MidiMessageType.TimeCodeQuarterFrame when message is MidiMessageUnknown(var data, _) => data,
             MidiMessageType.SongPositionPointer when message is MidiMessageSongPositionPointer songPosPointer => new[]
             {
                 (byte) songPosPointer.Type,
@@ -97,12 +97,12 @@ public class MidiOutputClient : MidiClient
 
         byte ByteFrom(MidiMessageType messageType, MidiChannel channel)
         {
-            return (byte) ((byte) messageType | (byte) channel);
+            return (byte)((byte)messageType | (byte)channel);
         }
 
         byte[] DefaultMessage(MidiMessage midiMessage)
         {
-            return new[] {(byte) midiMessage.Type};
+            return new[] { (byte)midiMessage.Type };
         }
     }
 }

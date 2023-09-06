@@ -1,5 +1,5 @@
-using System.Runtime.InteropServices;
 using RtMidi.Net.Enums;
+using System.Runtime.InteropServices;
 
 namespace RtMidi.Net.InteropServices;
 
@@ -19,7 +19,7 @@ internal abstract class RtMidiBase : IDisposable
     /// </remarks>
     /// <returns>Returns true if a port is open and false if not.</returns>
     public bool IsPortOpen { get; private set; }
-    
+
     protected RtMidiBase(IntPtr rtMidiPtr)
     {
         RtMidiPtr = rtMidiPtr;
@@ -97,7 +97,7 @@ internal abstract class RtMidiBase : IDisposable
             bufferNameSize = nameSize.Value;
         }
 
-        messagePtr = Marshal.AllocHGlobal((int) bufferNameSize);
+        messagePtr = Marshal.AllocHGlobal((int)bufferNameSize);
         try
         {
             resultInterop = RtMidiInterop.rtmidi_get_port_name(RtMidiPtr, portNumber, messagePtr, ref bufferNameSize);
@@ -159,7 +159,7 @@ internal abstract class RtMidiBase : IDisposable
         var unmanagedPointer = Marshal.AllocHGlobal(apis.Length);
         Marshal.Copy(apis, 0, unmanagedPointer, apis.Length);
         var result = RtMidiInterop.rtmidi_get_compiled_api(unmanagedPointer, sizeof(MidiApi));
-        apis = new byte [result];
+        apis = new byte[result];
         Marshal.Copy(unmanagedPointer, apis, 0, result);
         var apisResult = apis.Cast<MidiApi>().ToList();
         Marshal.FreeHGlobal(unmanagedPointer);
@@ -199,6 +199,17 @@ internal abstract class RtMidiBase : IDisposable
     public static string GetApiDisplayName(MidiApi api)
     {
         var ptr = RtMidiInterop.rtmidi_api_display_name(api);
+        var name = Marshal.PtrToStringUTF8(ptr);
+        return name ?? string.Empty;
+    }
+
+    /// <summary>
+    /// Return the version of the RtMidi library.
+    /// </summary>
+    /// <returns> The version of the RtMidi library </returns>
+    public static string GetRtMidiVersion()
+    {
+        var ptr = RtMidiInterop.rtmidi_get_version();
         var name = Marshal.PtrToStringUTF8(ptr);
         return name ?? string.Empty;
     }

@@ -7,8 +7,8 @@ public static class MidiManager
 {
     public static IReadOnlyCollection<MidiApi> GetAvailableApis() => RtMidiBase.GetCompiledApi();
     public static string GetApiName(MidiApi api) => RtMidiBase.GetApiName(api);
-
     public static string GetApiDisplayName(MidiApi api) => RtMidiBase.GetApiDisplayName(api);
+    public static string GetRtMidiVersion() => RtMidiBase.GetRtMidiVersion();
 
     public static List<MidiDeviceInfo> GetAvailableDevices()
     {

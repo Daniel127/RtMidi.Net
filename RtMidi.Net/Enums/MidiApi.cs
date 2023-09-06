@@ -7,6 +7,8 @@ public enum MidiApi : byte
     LinuxAlsa,
     UnixJack,
     WindowsMultimediaMidi,
-    WindowsKernelStreaming,
     RtMidiDummy,
+    WebMidi,
+    WindowsUwp,
+    Android,
 }

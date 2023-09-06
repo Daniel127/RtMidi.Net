@@ -19,7 +19,7 @@ internal class RtMidiOut : RtMidiBase
     public RtMidiOut() : base(RtMidiInterop.rtmidi_out_create_default())
     {
     }
-    
+
     /// <summary>
     /// Default constructor that allows an optional client name.
     /// <remarks>
@@ -36,7 +36,7 @@ internal class RtMidiOut : RtMidiBase
         : base(RtMidiInterop.rtmidi_out_create(api, clientName))
     {
     }
-    
+
     /// <inheritdoc />
     public override MidiApi GetCurrentApi()
     {
