@@ -5,6 +5,7 @@
         <Nullable>enable</Nullable>
 
         <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
         <RepositoryUrl>https://github.com/Daniel127/RtMidi.Net</RepositoryUrl>
         <PackageProjectUrl>https://github.com/Daniel127/RtMidi.Net</PackageProjectUrl>
         <RepositoryType>git</RepositoryType>
@@ -18,9 +19,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <None Include="..\LICENSE.md">
-            <Pack>True</Pack>
-            <PackagePath></PackagePath>
-        </None>
+        <None Include="..\LICENSE.md" Pack="true" PackagePath="/" />
+        <None Include="..\README.md" Pack="true" PackagePath="/" />
     </ItemGroup>
 </Project>

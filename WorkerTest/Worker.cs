@@ -23,13 +23,17 @@ namespace WorkerTest
         public override async Task StartAsync(CancellationToken cancellationToken)
         {
             _logger.LogInformation("Starting");
+            var rtMidiVersion = MidiManager.GetRtMidiVersion();
+            _logger.LogInformation("RtMidi version: {rtMidiVersion}", rtMidiVersion);
             var devices = MidiManager.GetAvailableDevices();
-            foreach (var d in devices)
-            {
-                _logger.LogInformation($"{d.Port}) {d.Name} - {d.Type}");
-            }
             if (devices.Any())
             {
+                _logger.LogInformation("Available devices:");
+                foreach (var d in devices.OrderBy(info => info.Port))
+                {
+                    _logger.LogInformation("{port}) {name} - {type}", d.Port, d.Name, d.Type);
+                }
+
                 var devicePort = 1u; //Change device to test
                 var device = MidiManager.GetDeviceInfo(devicePort, MidiDeviceType.Input);
                 _midiInputClient = new MidiInputClient(device);

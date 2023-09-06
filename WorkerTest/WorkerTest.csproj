@@ -4,6 +4,8 @@
     <TargetFramework>net7.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <RuntimeIdentifier>linux-arm</RuntimeIdentifier>
     <UserSecretsId>dotnet-WorkerTest-B41C8CE5-6C97-4BF3-90FB-7FB7452FA332</UserSecretsId>
   </PropertyGroup>
 

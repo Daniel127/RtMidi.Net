@@ -204,6 +204,17 @@ internal abstract class RtMidiBase : IDisposable
     }
 
     /// <summary>
+    /// Return the version of the RtMidi library.
+    /// </summary>
+    /// <returns> The version of the RtMidi library </returns>
+    public static string GetRtMidiVersion()
+    {
+        var ptr = RtMidiInterop.rtmidi_get_version();
+        var name = Marshal.PtrToStringUTF8(ptr);
+        return name ?? string.Empty;
+    }
+
+    /// <summary>
     /// Return the compiled MIDI API having the given name.
     /// </summary>
     /// <remarks>
