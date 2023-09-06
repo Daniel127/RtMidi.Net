@@ -1,5 +1,7 @@
 # Status
-[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=rtmidi-dotnet&metric=alert_status)](https://sonarcloud.io/dashboard?id=rtmidi-dotnet) [![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=rtmidi-dotnet&metric=ncloc)](https://sonarcloud.io/dashboard?id=rtmidi-dotnet) [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=rtmidi-dotnet&metric=bugs)](https://sonarcloud.io/dashboard?id=rtmidi-dotnet) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=rtmidi-dotnet&metric=coverage)](https://sonarcloud.io/dashboard?id=rtmidi-dotnet) [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=rtmidi-dotnet&metric=sqale_rating)](https://sonarcloud.io/dashboard?id=rtmidi-dotnet)
+
+[SonarDashboardLink]: https://sonarcloud.io/dashboard?id=Daniel127_RtMidi.Net
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=Daniel127_RtMidi.Net&metric=alert_status)][SonarDashboardLink] [![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=Daniel127_RtMidi.Net&metric=ncloc)][SonarDashboardLink] [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=Daniel127_RtMidi.Net&metric=bugs)][SonarDashboardLink] [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=Daniel127_RtMidi.Net&metric=coverage)][SonarDashboardLink] [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=Daniel127_RtMidi.Net&metric=sqale_rating)][SonarDashboardLink]
 
 [GitHubBadgeMaster]: https://github.com/Daniel127/RtMidi.Net/workflows/Build/badge.svg?branch=main
 [GitHubBadgeDevelop]: https://github.com/Daniel127/RtMidi.Net/workflows/Build/badge.svg?branch=develop
@@ -11,7 +13,7 @@
 [AzurePipelineDevelop]: https://dev.azure.com/Daniel127/RtMidi.Net/_build/latest?definitionId=11&branchName=develop
 
 [NugetUrl]: https://www.nuget.org/packages/RtMidi.Net
-[NugetBadge]: https://feeds.dev.azure.com/Daniel127/
+[NugetBadge]: https://feeds.dev.azure.com/Daniel127/8422bbcb-06b4-4da0-bb49-3b51aab2d4bc/_apis/public/Packaging/Feeds/RtMidi.Net/Packages/5bb5e570-4239-4a73-b928-d291ec05a9e3/Badge
 
 [RtMidiUrl]: https://github.com/thestk/rtmidi
 
