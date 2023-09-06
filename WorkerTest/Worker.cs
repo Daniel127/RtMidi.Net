@@ -9,6 +9,7 @@ namespace WorkerTest
     {
         private readonly ILogger<Worker> _logger;
         private MidiInputClient? _midiInputClient;
+        private const bool UseEventHandler = true; //Change to test
 
         /// <summary>
         /// Constructor
@@ -29,12 +30,14 @@ namespace WorkerTest
             }
             if (devices.Any())
             {
-                var devicePort = 1u; //TODO Change device to test
+                var devicePort = 1u; //Change device to test
                 var device = MidiManager.GetDeviceInfo(devicePort, MidiDeviceType.Input);
                 _midiInputClient = new MidiInputClient(device);
-                //TODO The event throws an exception after a while, i'm not sure why
-                //_midiInputClient.OnMessageReceived += MidiClient_OnMessageReceived;
-                //_midiInputClient.ActivateMessageReceivedEvent();
+                if (UseEventHandler)
+                {
+                    _midiInputClient.OnMessageReceived += MidiClient_OnMessageReceived;
+                    _midiInputClient.ActivateMessageReceivedEvent();
+                }
                 _midiInputClient.Open();
             }
             else
@@ -50,10 +53,13 @@ namespace WorkerTest
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             _logger.LogInformation("Executing");
-            while (!stoppingToken.IsCancellationRequested)
+            if (!UseEventHandler)
             {
-                var (message, _) = await _midiInputClient!.GetMessageAsync(stoppingToken);
-                OnMessageReceived(message);
+                while (!stoppingToken.IsCancellationRequested)
+                {
+                    var (message, _) = await _midiInputClient!.GetMessageAsync(stoppingToken);
+                    OnMessageReceived(message);
+                }
             }
         }
 

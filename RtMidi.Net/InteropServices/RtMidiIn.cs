@@ -16,6 +16,12 @@ namespace RtMidi.Net.InteropServices;
 /// </summary>
 internal class RtMidiIn : RtMidiBase
 {
+#pragma warning disable IDE0052
+    // ReSharper disable once NotAccessedField.Local
+    // Used to prevent garbage collection of the delegate
+    private RtMidiCallback? _midiCallback;
+#pragma warning restore IDE0052
+
     /// <summary>
     /// Default constructor
     /// </summary>
@@ -67,6 +73,7 @@ internal class RtMidiIn : RtMidiBase
     /// passed to the callback function whenever it is called.</param>
     public void SetCallback(RtMidiCallback callback, byte[]? userData)
     {
+        _midiCallback = callback;
         RtMidiInterop.rtmidi_in_set_callback(RtMidiPtr, callback, userData);
     }
 
@@ -126,6 +133,7 @@ internal class RtMidiIn : RtMidiBase
     /// <inheritdoc />
     protected override void ReleaseUnmanagedResources()
     {
+        _midiCallback = null;
         RtMidiInterop.rtmidi_in_free(RtMidiPtr);
     }
 }
