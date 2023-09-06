@@ -9,7 +9,7 @@ namespace RtMidi.Net.Enums;
 public enum MidiMessageType : byte
 {
     Unknown = 0,
-    
+
     NoteOff = 0b_1000_0000,
     NoteOn = 0b_1001_0000,
     PolyphonicKeyPressure = 0b_1010_0000,

@@ -1,7 +1,7 @@
-using System.Diagnostics;
 using RtMidi.Net.Enums;
 using RtMidi.Net.Events;
 using RtMidi.Net.InteropServices;
+using System.Diagnostics;
 
 namespace RtMidi.Net.Clients;
 
@@ -46,7 +46,7 @@ public class MidiInputClient : MidiClient
 
     public MidiInputClient(MidiDeviceInfo deviceInfo) : base(deviceInfo, new RtMidiIn())
     {
-        _rtMidiInClient = (RtMidiIn) RtMidiClient;
+        _rtMidiInClient = (RtMidiIn)RtMidiClient;
     }
 
     public void ActivateMessageReceivedEvent()
@@ -66,8 +66,8 @@ public class MidiInputClient : MidiClient
 
     private void InternalMessageReceived(double timestamp, IntPtr messagePtr, UIntPtr messageSize, IntPtr userDataPtr)
     {
-        var messageData = new byte [(int) messageSize];
-        System.Runtime.InteropServices.Marshal.Copy(messagePtr, messageData, 0, (int) messageSize);
+        var messageData = new byte[(int)messageSize];
+        System.Runtime.InteropServices.Marshal.Copy(messagePtr, messageData, 0, (int)messageSize);
         var message = ConvertMessage(messageData);
         var midiEventArgs = new MidiMessageReceivedEventArgs(message, TimeSpan.FromSeconds(timestamp));
         OnMessageReceived?.Invoke(this, midiEventArgs);
@@ -93,7 +93,7 @@ public class MidiInputClient : MidiClient
         {
             Stopwatch stopwatch = new();
             byte[] messageData;
-            
+
             stopwatch.Start();
             do
             {
@@ -113,10 +113,10 @@ public class MidiInputClient : MidiClient
     {
         MidiMessageType type;
 
-        if (message[0] is >= (byte) MidiMessageType.NoteOff and < (byte) MidiMessageType.SystemExclusive)
+        if (message[0] is >= (byte)MidiMessageType.NoteOff and < (byte)MidiMessageType.SystemExclusive)
         {
-            var channel = (MidiChannel) (0b_0000_1111 & message[0]);
-            type = (MidiMessageType) (0b_1111_0000 & message[0]);
+            var channel = (MidiChannel)(0b_0000_1111 & message[0]);
+            type = (MidiMessageType)(0b_1111_0000 & message[0]);
 
             switch (type)
             {
@@ -143,7 +143,7 @@ public class MidiInputClient : MidiClient
             return new MidiMessageUnknown(message.ToArray());
         }
 
-        type = (MidiMessageType) message[0];
+        type = (MidiMessageType)message[0];
         switch (type)
         {
             case MidiMessageType.SystemExclusive:

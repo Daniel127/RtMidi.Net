@@ -14,7 +14,7 @@ public enum MusicNote : byte
     A = 9,
     ASharp = 10,
     B = 11,
-    
+
     Do = C,
     DoSharp = CSharp,
     Re = D,

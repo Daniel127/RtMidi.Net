@@ -21,8 +21,8 @@ public readonly struct MidiNote
     public MidiNote(byte note)
     {
         if (note > 127) throw new ArgumentOutOfRangeException(nameof(note), "The note must be 0 to 127");
-        Note = (MusicNote) (note % 12);
-        Octave = (MusicOctave) (note / 12);
+        Note = (MusicNote)(note % 12);
+        Octave = (MusicOctave)(note / 12);
     }
 
     /// <summary>
@@ -42,7 +42,7 @@ public readonly struct MidiNote
     /// <returns>The MIDI byte representation</returns>
     public byte GetByteRepresentation()
     {
-        return (byte) ((byte) Note + (byte) ((byte) Octave * 12));
+        return (byte)((byte)Note + (byte)((byte)Octave * 12));
     }
 
     /// <summary>
@@ -67,13 +67,13 @@ public readonly struct MidiNote
         if (useLatinName)
         {
             var latinName = notesNames.Except(angloSaxonNames).ToList();
-            noteName = latinName[(int) Note];
+            noteName = latinName[(int)Note];
         }
         else
         {
-            noteName = angloSaxonNames[(int) Note];
+            noteName = angloSaxonNames[(int)Note];
         }
 
-        return $"{noteName.Replace("Sharp", "#")}{(int) Octave}";
+        return $"{noteName.Replace("Sharp", "#")}{(int)Octave}";
     }
 }
