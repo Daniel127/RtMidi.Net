@@ -1,11 +1,20 @@
 name: Build
 
+# Branches are built through their pull request; pushes build only main/develop
+# (for the badges) and release tags (for publishing). This avoids two runs per
+# commit on a PR branch.
 on:
   push:
-    branches: ['**']
+    branches: [main, develop]
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+
+# A newer commit on the same PR/branch cancels the run that is still going.
+# Tag runs (publishing) are never cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 env:
   DOTNET_NOLOGO: true
