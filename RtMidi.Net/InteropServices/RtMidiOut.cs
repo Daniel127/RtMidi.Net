@@ -51,8 +51,8 @@ internal class RtMidiOut : RtMidiBase
     /// <param name="message">Message to send</param>
     public void SendMessage(byte[] message)
     {
-        var result = RtMidiInterop.rtmidi_out_send_message(RtMidiPtr, message, message.Length);
-        if (result == -1) throw new Exception();
+        RtMidiInterop.rtmidi_out_send_message(RtMidiPtr, message, message.Length);
+        ThrowIfError();
     }
 
     /// <inheritdoc />

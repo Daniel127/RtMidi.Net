@@ -75,6 +75,7 @@ internal class RtMidiIn : RtMidiBase
     {
         _midiCallback = callback;
         RtMidiInterop.rtmidi_in_set_callback(RtMidiPtr, callback, userData);
+        ThrowIfError();
     }
 
     /// <summary>
@@ -87,6 +88,7 @@ internal class RtMidiIn : RtMidiBase
     public void CancelCallback()
     {
         RtMidiInterop.rtmidi_in_cancel_callback(RtMidiPtr);
+        ThrowIfError();
     }
 
     /// <summary>
@@ -105,6 +107,7 @@ internal class RtMidiIn : RtMidiBase
     public void IgnoreTypes(bool midiSysex = true, bool midiTime = true, bool midiSense = true)
     {
         RtMidiInterop.rtmidi_in_ignore_types(RtMidiPtr, midiSysex, midiTime, midiSense);
+        ThrowIfError();
     }
 
     /// <summary>

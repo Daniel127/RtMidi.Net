@@ -5,7 +5,7 @@ namespace RtMidi.Net.Clients;
 
 public abstract class MidiClient : IDisposable
 {
-    private readonly MidiDeviceInfo _deviceInfo;
+    private readonly MidiDeviceInfo? _deviceInfo;
     internal readonly RtMidiBase RtMidiClient;
     private bool _disposedValue;
 
@@ -19,6 +19,11 @@ public abstract class MidiClient : IDisposable
             RtMidiClient is RtMidiIn ? MidiDeviceType.Input : MidiDeviceType.Output);
     }
 
+    internal MidiClient(RtMidiBase rtMidiClient)
+    {
+        RtMidiClient = rtMidiClient;
+    }
+
     internal MidiClient(MidiDeviceInfo deviceInfo, RtMidiBase rtMidiClient)
     {
         _deviceInfo = deviceInfo;
@@ -28,9 +33,16 @@ public abstract class MidiClient : IDisposable
     public void Open()
     {
         if (RtMidiClient.IsPortOpen) return;
+        if (_deviceInfo is null)
+            throw new InvalidOperationException("This client was created without a device; use OpenVirtual instead.");
         RtMidiClient.OpenPort(_deviceInfo.Port);
     }
 
+    /// <summary>
+    /// Creates a virtual MIDI port that other applications (or another client in
+    /// this process) can connect to. Supported by CoreMIDI (macOS), ALSA and JACK;
+    /// Windows MultiMedia does not support virtual ports.
+    /// </summary>
     public void OpenVirtual(string virtualPortName)
     {
         RtMidiClient.OpenVirtualPort(virtualPortName);

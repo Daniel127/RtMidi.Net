@@ -24,6 +24,76 @@ internal abstract class RtMidiBase : IDisposable
     {
         RtMidiPtr = rtMidiPtr;
         IsPortOpen = false;
+
+        // The native object could not be created (e.g. the MIDI backend is not
+        // available). Release the wrapper and report the error instead of
+        // crashing on the next call with a null RtMidi pointer.
+        if (TryGetError(out var error))
+        {
+            ReleaseUnmanagedResources();
+            GC.SuppressFinalize(this);
+            throw new RtMidiException(error);
+        }
+    }
+
+    /// <summary>
+    /// Layout of the native <c>RtMidiWrapper</c> struct (rtmidi_c.h).
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RtMidiWrapper
+    {
+        public IntPtr Ptr;
+        public IntPtr Data;
+        [MarshalAs(UnmanagedType.U1)] public bool Ok;
+        public IntPtr Msg;
+    }
+
+    private static readonly int OkFieldOffset = (int)Marshal.OffsetOf<RtMidiWrapper>(nameof(RtMidiWrapper.Ok));
+
+    private bool TryGetError(out string error)
+    {
+        var wrapper = Marshal.PtrToStructure<RtMidiWrapper>(RtMidiPtr);
+        if (wrapper.Ok)
+        {
+            error = string.Empty;
+            return false;
+        }
+
+        // RtMidi 6.0 stores err.what() of an exception that is already destroyed,
+        // so the text may be garbage. Read it defensively and only use it when it
+        // looks like real text; RtMidi also prints the error to stderr.
+        error = ReadErrorMessage(wrapper.Msg) ?? "RtMidi reported an error (RtMidi prints the details to stderr).";
+        return true;
+    }
+
+    private static string? ReadErrorMessage(IntPtr msgPtr)
+    {
+        if (msgPtr == IntPtr.Zero) return null;
+
+        const int maxLength = 512;
+        var bytes = new List<byte>();
+        for (var i = 0; i < maxLength; i++)
+        {
+            var b = Marshal.ReadByte(msgPtr, i);
+            if (b == 0) break;
+            // Printable ASCII only: RtMidi messages are plain English text.
+            if (b is < 0x20 or > 0x7E) return null;
+            bytes.Add(b);
+        }
+
+        return bytes.Count is > 0 and < maxLength ? System.Text.Encoding.ASCII.GetString(bytes.ToArray()) : null;
+    }
+
+    /// <summary>
+    /// Throws <see cref="RtMidiException"/> if the last native call failed.
+    /// </summary>
+    protected void ThrowIfError()
+    {
+        if (!TryGetError(out var error)) return;
+
+        // The C API never resets the flag on success, so clear it here.
+        Marshal.WriteByte(RtMidiPtr, OkFieldOffset, 1);
+        throw new RtMidiException(error);
     }
 
     /// <summary>
@@ -42,6 +112,7 @@ internal abstract class RtMidiBase : IDisposable
     {
         portName ??= GetPortName(portNumber); //Work around if string is null, TODO Try send IntPtr.Zero
         RtMidiInterop.rtmidi_open_port(RtMidiPtr, portNumber, portName);
+        ThrowIfError();
         IsPortOpen = true;
     }
 
@@ -59,6 +130,7 @@ internal abstract class RtMidiBase : IDisposable
     public void OpenVirtualPort(string portName)
     {
         RtMidiInterop.rtmidi_open_virtual_port(RtMidiPtr, portName);
+        ThrowIfError();
     }
 
     /// <summary>
@@ -67,7 +139,9 @@ internal abstract class RtMidiBase : IDisposable
     /// <returns>This function returns the number of MIDI ports of the selected API.</returns>
     public uint GetPortCount()
     {
-        return RtMidiInterop.rtmidi_get_port_count(RtMidiPtr);
+        var count = RtMidiInterop.rtmidi_get_port_count(RtMidiPtr);
+        ThrowIfError();
+        return count;
     }
 
     /// <summary>
@@ -119,6 +193,7 @@ internal abstract class RtMidiBase : IDisposable
     {
         RtMidiInterop.rtmidi_close_port(RtMidiPtr);
         IsPortOpen = false;
+        ThrowIfError();
     }
 
     #region Dispose

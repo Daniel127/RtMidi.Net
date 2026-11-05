@@ -162,6 +162,97 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
+  # Use the package on every platform: install it into a small app
+  # (tests/RtMidi.Net.PackageTest), load RtMidi and, where virtual ports exist
+  # (ALSA, CoreMIDI), open a port, receive Note On/Off events and close.
+  # Windows MultiMedia has no virtual ports, so Windows lists the ports only.
+  # ---------------------------------------------------------------------------
+  package-test:
+    name: Test ${{ matrix.rid }}
+    needs: package
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: linux-x64
+            runner: ubuntu-latest
+            mode: alsa
+          - rid: linux-arm64
+            runner: ubuntu-24.04-arm
+            mode: alsa
+          - rid: linux-arm
+            runner: ubuntu-latest
+            mode: alsa-qemu
+          - rid: win-x64
+            runner: windows-latest
+            mode: windows
+          - rid: win-x86
+            runner: windows-latest
+            mode: windows
+          - rid: win-arm64
+            runner: windows-11-arm
+            mode: windows
+          - rid: osx-arm64
+            runner: macos-latest
+            mode: macos
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - uses: actions/download-artifact@v4
+        with:
+          name: nuget-package
+          path: artifacts/nuget
+      - name: Publish test app with the package
+        run: dotnet publish tests/RtMidi.Net.PackageTest -c Release -r ${{ matrix.rid }} --self-contained -o package-test
+
+      # ALSA needs the sequencer device (/dev/snd/seq). GitHub's Linux VMs ship
+      # without it loaded, so install the extra kernel modules and load snd-seq.
+      - name: Enable ALSA sequencer
+        if: startsWith(matrix.mode, 'alsa')
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q libasound2t64 || sudo apt-get install -y -q libasound2
+          sudo apt-get install -y -q "linux-modules-extra-$(uname -r)" || true
+          sudo modprobe snd-seq || true
+          if [[ -e /dev/snd/seq ]]; then
+            sudo chmod a+rw /dev/snd/seq
+            echo "TEST_ARGS=--loopback" >> "$GITHUB_ENV"
+          else
+            echo "::warning::/dev/snd/seq is not available on this runner; running the load test only"
+            echo "TEST_ARGS=" >> "$GITHUB_ENV"
+          fi
+
+      - name: Run (Linux)
+        if: matrix.mode == 'alsa'
+        run: ./package-test/RtMidi.Net.PackageTest $TEST_ARGS
+
+      - name: Set up QEMU
+        if: matrix.mode == 'alsa-qemu'
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      - name: Run (Linux ARM32 under QEMU)
+        if: matrix.mode == 'alsa-qemu'
+        run: |
+          device_args=""
+          if [[ -e /dev/snd/seq ]]; then device_args="--device /dev/snd/seq"; fi
+          docker run --rm --platform linux/arm/v7 $device_args \
+            -v "$PWD/package-test:/app" -w /app ubuntu:20.04 \
+            bash -c "apt-get update -q && DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends libasound2 && ./RtMidi.Net.PackageTest $TEST_ARGS"
+
+      - name: Run (Windows)
+        if: matrix.mode == 'windows'
+        run: ./package-test/RtMidi.Net.PackageTest.exe --devices
+
+      - name: Run (macOS)
+        if: matrix.mode == 'macos'
+        run: ./package-test/RtMidi.Net.PackageTest --loopback
+
+  # ---------------------------------------------------------------------------
   # Publish to nuget.org when a vX.Y.Z tag is pushed, using nuget.org Trusted
   # Publishing (GitHub OIDC -> short-lived API key, no long-lived secret).
   # Requires a Trusted Publishing policy on nuget.org for this repository and
@@ -169,7 +260,7 @@ jobs:
   # nuget.org profile name (not the email).
   # ---------------------------------------------------------------------------
   publish:
-    needs: package
+    needs: [package, package-test]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:

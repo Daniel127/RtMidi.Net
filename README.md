@@ -67,6 +67,17 @@ The `Build` GitHub Actions workflow compiles the library for every platform and 
 
 To pack locally with your own builds, put them in `artifacts/native/<rid>/native/` (or pass `-p:RtMidiNativeDir=<folder>`) before running `dotnet pack`. To build the Linux library on your machine, run `.github/scripts/build-rtmidi-linux.sh artifacts/native/linux-x64/native`.
 
+## How they are tested
+
+After packing, CI installs the package into a small app ([`tests/RtMidi.Net.PackageTest`](tests/RtMidi.Net.PackageTest)) and runs it on every platform. The app loads RtMidi and lists the ports. Where virtual ports exist (macOS, and Linux when the runner has the ALSA sequencer), it also opens a virtual port, connects a `MidiInputClient`, sends Note On/Note Off, checks that both arrive through `OnMessageReceived`, and closes. Windows has no virtual ports without a third-party driver, so it only lists the ports.
+
+To run it locally, pack into `artifacts/nuget` and run the app:
+
+```bash
+dotnet pack RtMidi.Net/RtMidi.Net.csproj -c Release -o artifacts/nuget
+dotnet run --project tests/RtMidi.Net.PackageTest -- --loopback
+```
+
 To update RtMidi, check out the new tag in the submodule and commit it:
 
 ```bash

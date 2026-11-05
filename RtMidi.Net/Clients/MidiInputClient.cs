@@ -44,6 +44,15 @@ public class MidiInputClient : MidiClient
 
     public event EventHandler<MidiMessageReceivedEventArgs>? OnMessageReceived;
 
+    /// <summary>
+    /// Creates a client that is not bound to a device, to be used with
+    /// <see cref="MidiClient.OpenVirtual"/>.
+    /// </summary>
+    public MidiInputClient() : base(new RtMidiIn())
+    {
+        _rtMidiInClient = (RtMidiIn)RtMidiClient;
+    }
+
     public MidiInputClient(MidiDeviceInfo deviceInfo) : base(deviceInfo, new RtMidiIn())
     {
         _rtMidiInClient = (RtMidiIn)RtMidiClient;
