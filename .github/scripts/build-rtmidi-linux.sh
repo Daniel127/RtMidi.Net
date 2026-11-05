@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds librtmidi.so (ALSA backend) from the external/rtmidi submodule.
-# Meant to run inside an old Debian container so the binary only needs
-# an old glibc (bullseye = glibc 2.31, same as Raspberry Pi OS 11).
+# Meant to run inside an old container (ubuntu:20.04) so the binary only needs
+# an old glibc (2.31, same as Debian 11 / Raspberry Pi OS 11).
 #
 # Usage: build-rtmidi-linux.sh <output-dir>
 set -euo pipefail

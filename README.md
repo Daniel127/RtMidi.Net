@@ -7,20 +7,15 @@
 [GitHubBadgeDevelop]: https://github.com/Daniel127/RtMidi.Net/workflows/Build/badge.svg?branch=develop
 [GitHubActionsLink]: https://github.com/Daniel127/RtMidi.Net/actions?query=workflow%3ABuild
 
-[AzureBadgeMaster]: https://dev.azure.com/Daniel127/RtMidi.Net/_apis/build/status/CI-Release?branchName=main
-[AzurePipelineMaster]: https://dev.azure.com/Daniel127/RtMidi.Net/_build/latest?definitionId=12&branchName=main
-[AzureBadgeDevelop]: https://dev.azure.com/Daniel127/RtMidi.Net/_apis/build/status/CI-Development?branchName=develop
-[AzurePipelineDevelop]: https://dev.azure.com/Daniel127/RtMidi.Net/_build/latest?definitionId=11&branchName=develop
-
 [NugetUrl]: https://www.nuget.org/packages/RtMidi.Net
-[NugetBadge]: https://feeds.dev.azure.com/Daniel127/8422bbcb-06b4-4da0-bb49-3b51aab2d4bc/_apis/public/Packaging/Feeds/RtMidi.Net/Packages/5bb5e570-4239-4a73-b928-d291ec05a9e3/Badge
+[NugetBadge]: https://img.shields.io/nuget/v/RtMidi.Net
 
 [RtMidiUrl]: https://github.com/thestk/rtmidi
 
 | Branch | Build | Deployment |
 |:----:|:-------------:|:----:|
-| main | [![Build][GitHubBadgeMaster]][GitHubActionsLink]  [![Build Status][AzureBadgeMaster]][AzurePipelineMaster] | [![Nuget package][NugetBadge]][NugetUrl] |
-| develop | [![Build][GitHubBadgeDevelop]][GitHubActionsLink]  [![Build Status][AzureBadgeDevelop]][AzurePipelineDevelop] | N/A |
+| main | [![Build][GitHubBadgeMaster]][GitHubActionsLink] | [![Nuget package][NugetBadge]][NugetUrl] |
+| develop | [![Build][GitHubBadgeDevelop]][GitHubActionsLink] | N/A |
 
 
 # What is it?
@@ -68,7 +63,7 @@ On Linux, the library needs ALSA at runtime (`libasound2`), which is installed o
 
 RtMidi is referenced as a git submodule in `external/rtmidi`, pinned to the version this wrapper supports. Clone with `git clone --recursive`, or run `git submodule update --init` in an existing clone.
 
-The `Build` GitHub Actions workflow compiles the library for every platform and packs it under `runtimes/<rid>/native` in the NuGet package. The Linux builds run in a Debian 11 container, so they work with glibc 2.31 or newer.
+The `Build` GitHub Actions workflow compiles the library for every platform and packs it under `runtimes/<rid>/native` in the NuGet package. Pushing a `vX.Y.Z` tag publishes that version to nuget.org (the repository needs a `NUGET_API_KEY` secret). The Linux builds run in an Ubuntu 20.04 container, so they work with glibc 2.31 or newer.
 
 To pack locally with your own builds, put them in `artifacts/native/<rid>/native/` (or pass `-p:RtMidiNativeDir=<folder>`) before running `dotnet pack`. To build the Linux library on your machine, run `.github/scripts/build-rtmidi-linux.sh artifacts/native/linux-x64/native`.
 
