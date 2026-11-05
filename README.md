@@ -63,7 +63,7 @@ On Linux, the library needs ALSA at runtime (`libasound2`), which is installed o
 
 RtMidi is referenced as a git submodule in `external/rtmidi`, pinned to the version this wrapper supports. Clone with `git clone --recursive`, or run `git submodule update --init` in an existing clone.
 
-The `Build` GitHub Actions workflow compiles the library for every platform and packs it under `runtimes/<rid>/native` in the NuGet package. Pushing a `vX.Y.Z` tag publishes that version to nuget.org (the repository needs a `NUGET_API_KEY` secret). The Linux builds run in an Ubuntu 20.04 container, so they work with glibc 2.31 or newer.
+The `Build` GitHub Actions workflow compiles the library for every platform and packs it under `runtimes/<rid>/native` in the NuGet package. Pushing a `vX.Y.Z` tag publishes that version to nuget.org using [Trusted Publishing](https://learn.microsoft.com/nuget/nuget-org/trusted-publishing): no API key is stored in the repository. It needs a Trusted Publishing policy on nuget.org for this repository and the `ci-release.yml` workflow, plus a `NUGET_USER` secret with the nuget.org profile name. The Linux builds run in an Ubuntu 20.04 container, so they work with glibc 2.31 or newer.
 
 To pack locally with your own builds, put them in `artifacts/native/<rid>/native/` (or pass `-p:RtMidiNativeDir=<folder>`) before running `dotnet pack`. To build the Linux library on your machine, run `.github/scripts/build-rtmidi-linux.sh artifacts/native/linux-x64/native`.
 
