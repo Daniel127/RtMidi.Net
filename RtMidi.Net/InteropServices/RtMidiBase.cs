@@ -24,16 +24,21 @@ internal abstract class RtMidiBase : IDisposable
     {
         RtMidiPtr = rtMidiPtr;
         IsPortOpen = false;
+    }
 
-        // The native object could not be created (e.g. the MIDI backend is not
-        // available). Release the wrapper and report the error instead of
-        // crashing on the next call with a null RtMidi pointer.
-        if (TryGetError(out var error))
-        {
-            ReleaseUnmanagedResources();
-            GC.SuppressFinalize(this);
-            throw new RtMidiException(error);
-        }
+    /// <summary>
+    /// Checks the result of an <c>rtmidi_*_create</c> call. If the native object
+    /// could not be created (e.g. the MIDI backend is not available), frees the
+    /// wrapper and throws, instead of crashing later on a null RtMidi pointer.
+    /// </summary>
+    protected static IntPtr EnsureCreated(IntPtr rtMidiPtr, Action<IntPtr> free)
+    {
+        var wrapper = Marshal.PtrToStructure<RtMidiWrapper>(rtMidiPtr);
+        if (wrapper.Ok) return rtMidiPtr;
+
+        var error = ReadErrorMessage(wrapper.Msg) ?? GenericError;
+        free(rtMidiPtr);
+        throw new RtMidiException(error);
     }
 
     /// <summary>
@@ -47,6 +52,8 @@ internal abstract class RtMidiBase : IDisposable
         [MarshalAs(UnmanagedType.U1)] public bool Ok;
         public IntPtr Msg;
     }
+
+    private const string GenericError = "RtMidi reported an error (RtMidi prints the details to stderr).";
 
     private static readonly int OkFieldOffset = (int)Marshal.OffsetOf<RtMidiWrapper>(nameof(RtMidiWrapper.Ok));
 
@@ -62,7 +69,7 @@ internal abstract class RtMidiBase : IDisposable
         // RtMidi 6.0 stores err.what() of an exception that is already destroyed,
         // so the text may be garbage. Read it defensively and only use it when it
         // looks like real text; RtMidi also prints the error to stderr.
-        error = ReadErrorMessage(wrapper.Msg) ?? "RtMidi reported an error (RtMidi prints the details to stderr).";
+        error = ReadErrorMessage(wrapper.Msg) ?? GenericError;
         return true;
     }
 
@@ -203,17 +210,28 @@ internal abstract class RtMidiBase : IDisposable
     /// </summary>
     protected abstract void ReleaseUnmanagedResources();
 
+    private bool _released;
+
+    private void Release()
+    {
+        // RtMidiPtr is zero when construction failed in EnsureCreated (the
+        // wrapper was already freed there), so there is nothing to release.
+        if (_released || RtMidiPtr == IntPtr.Zero) return;
+        _released = true;
+        ReleaseUnmanagedResources();
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {
-        ReleaseUnmanagedResources();
+        Release();
         GC.SuppressFinalize(this);
     }
 
     /// <inheritdoc />
     ~RtMidiBase()
     {
-        ReleaseUnmanagedResources();
+        Release();
     }
 
     #endregion

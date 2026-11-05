@@ -9,7 +9,7 @@ public abstract class MidiClient : IDisposable
     internal readonly RtMidiBase RtMidiClient;
     private bool _disposedValue;
 
-    internal MidiClient(uint deviceId, RtMidiBase rtMidiClient)
+    private protected MidiClient(uint deviceId, RtMidiBase rtMidiClient)
     {
         RtMidiClient = rtMidiClient;
         _deviceInfo = new MidiDeviceInfo(
@@ -19,12 +19,12 @@ public abstract class MidiClient : IDisposable
             RtMidiClient is RtMidiIn ? MidiDeviceType.Input : MidiDeviceType.Output);
     }
 
-    internal MidiClient(RtMidiBase rtMidiClient)
+    private protected MidiClient(RtMidiBase rtMidiClient)
     {
         RtMidiClient = rtMidiClient;
     }
 
-    internal MidiClient(MidiDeviceInfo deviceInfo, RtMidiBase rtMidiClient)
+    private protected MidiClient(MidiDeviceInfo deviceInfo, RtMidiBase rtMidiClient)
     {
         _deviceInfo = deviceInfo;
         RtMidiClient = rtMidiClient;

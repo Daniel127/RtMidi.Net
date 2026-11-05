@@ -25,7 +25,7 @@ internal class RtMidiIn : RtMidiBase
     /// <summary>
     /// Default constructor
     /// </summary>
-    public RtMidiIn() : base(RtMidiInterop.rtmidi_in_create_default())
+    public RtMidiIn() : base(EnsureCreated(RtMidiInterop.rtmidi_in_create_default(), RtMidiInterop.rtmidi_in_free))
     {
     }
 
@@ -49,7 +49,7 @@ internal class RtMidiIn : RtMidiBase
     /// <param name="clientName"></param>
     /// <param name="queueSizeLimit"></param>
     public RtMidiIn(MidiApi api, string clientName, uint queueSizeLimit = 100)
-        : base(RtMidiInterop.rtmidi_in_create(api, clientName, queueSizeLimit))
+        : base(EnsureCreated(RtMidiInterop.rtmidi_in_create(api, clientName, queueSizeLimit), RtMidiInterop.rtmidi_in_free))
     {
     }
 

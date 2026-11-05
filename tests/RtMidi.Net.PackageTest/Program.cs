@@ -64,14 +64,7 @@ static async Task<int> RunLoopback()
     Console.WriteLine($"  opened virtual output port '{portName}'");
 
     // 2. Find it among the input ports (CoreMIDI may take a moment to publish it).
-    MidiDeviceInfo? source = null;
-    var stopwatch = Stopwatch.StartNew();
-    while (source is null && stopwatch.Elapsed < TimeSpan.FromSeconds(5))
-    {
-        source = MidiManager.GetAvailableDevices()
-            .FirstOrDefault(d => d.Type == MidiDeviceType.Input && d.Name.Contains(portName));
-        if (source is null) await Task.Delay(100);
-    }
+    var source = await FindInputPort(portName);
     if (source is null)
         return Fail($"virtual port '{portName}' not found among input ports");
     Console.WriteLine($"  found it as input port {source.Port}: {source.Name}");
@@ -113,16 +106,38 @@ static async Task<int> RunLoopback()
     if (finished != gotBoth.Task)
         return Fail($"timed out waiting for messages, received {received.Count} of 2");
 
-    lock (received)
-    {
-        if (received[0] is not MidiMessageNote { Type: MidiMessageType.NoteOn, Velocity: 100 } on || on.Note.GetByteRepresentation() != 60)
-            return Fail($"first message should be Note On 60/100, got {received[0]}");
-        if (received[1] is not MidiMessageNote { Type: MidiMessageType.NoteOff } off || off.Note.GetByteRepresentation() != 60)
-            return Fail($"second message should be Note Off 60, got {received[1]}");
-    }
+    string? error;
+    lock (received) error = CheckNoteOnOff(received, note);
+    if (error is not null)
+        return Fail(error);
 
     Console.WriteLine("  loopback OK");
     return 0;
+}
+
+static async Task<MidiDeviceInfo?> FindInputPort(string portName)
+{
+    var stopwatch = Stopwatch.StartNew();
+    while (stopwatch.Elapsed < TimeSpan.FromSeconds(5))
+    {
+        var port = MidiManager.GetAvailableDevices()
+            .FirstOrDefault(d => d.Type == MidiDeviceType.Input && d.Name.Contains(portName));
+        if (port is not null) return port;
+        await Task.Delay(100);
+    }
+    return null;
+}
+
+static string? CheckNoteOnOff(IReadOnlyList<MidiMessage> received, MidiNote note)
+{
+    var expected = note.GetByteRepresentation();
+    if (received[0] is not MidiMessageNote { Type: MidiMessageType.NoteOn, Velocity: 100 } on
+        || on.Note.GetByteRepresentation() != expected)
+        return $"first message should be Note On {expected}/100, got {received[0]}";
+    if (received[1] is not MidiMessageNote { Type: MidiMessageType.NoteOff } off
+        || off.Note.GetByteRepresentation() != expected)
+        return $"second message should be Note Off {expected}, got {received[1]}";
+    return null;
 }
 
 static int Fail(string message)
