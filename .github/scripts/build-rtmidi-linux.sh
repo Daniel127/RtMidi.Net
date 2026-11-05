@@ -9,7 +9,7 @@ set -euo pipefail
 out_dir="${1:?output directory required}"
 src_dir="$(cd "$(dirname "$0")/../../external/rtmidi" && pwd)"
 
-if ! command -v g++ >/dev/null || [ ! -f /usr/include/alsa/asoundlib.h ]; then
+if ! command -v g++ >/dev/null || [[ ! -f /usr/include/alsa/asoundlib.h ]]; then
   apt-get update -q
   DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends g++ libasound2-dev
 fi
