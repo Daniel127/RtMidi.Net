@@ -3,9 +3,9 @@
 [SonarDashboardLink]: https://sonarcloud.io/dashboard?id=Daniel127_RtMidi.Net
 [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=Daniel127_RtMidi.Net&metric=alert_status)][SonarDashboardLink] [![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=Daniel127_RtMidi.Net&metric=ncloc)][SonarDashboardLink] [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=Daniel127_RtMidi.Net&metric=bugs)][SonarDashboardLink] [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=Daniel127_RtMidi.Net&metric=coverage)][SonarDashboardLink] [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=Daniel127_RtMidi.Net&metric=sqale_rating)][SonarDashboardLink]
 
-[GitHubBadgeMaster]: https://github.com/Daniel127/RtMidi.Net/workflows/Build/badge.svg?branch=main
-[GitHubBadgeDevelop]: https://github.com/Daniel127/RtMidi.Net/workflows/Build/badge.svg?branch=develop
-[GitHubActionsLink]: https://github.com/Daniel127/RtMidi.Net/actions?query=workflow%3ABuild
+[GitHubBadgeMaster]: https://github.com/Daniel127/RtMidi.Net/actions/workflows/ci-release.yml/badge.svg?branch=main
+[GitHubBadgeDevelop]: https://github.com/Daniel127/RtMidi.Net/actions/workflows/ci-release.yml/badge.svg?branch=develop
+[GitHubActionsLink]: https://github.com/Daniel127/RtMidi.Net/actions/workflows/ci-release.yml
 
 [NugetUrl]: https://www.nuget.org/packages/RtMidi.Net
 [NugetBadge]: https://img.shields.io/nuget/v/RtMidi.Net
