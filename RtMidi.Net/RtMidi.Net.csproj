@@ -22,4 +22,18 @@
         <None Include="..\LICENSE.md" Pack="true" PackagePath="/" />
         <None Include="..\README.md" Pack="true" PackagePath="/" />
     </ItemGroup>
+
+    <!--
+      Native RtMidi libraries built by CI from the external/rtmidi submodule.
+      Expected layout: $(RtMidiNativeDir)<rid>/native/<library>
+      They are packed as runtimes/<rid>/native/<library>, so the .NET runtime
+      picks the right one for the platform automatically.
+    -->
+    <PropertyGroup>
+        <RtMidiNativeDir Condition="'$(RtMidiNativeDir)' == ''">$(MSBuildThisFileDirectory)..\artifacts\native\</RtMidiNativeDir>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="$(RtMidiNativeDir)**\*" Pack="true" PackagePath="runtimes" Visible="false" />
+    </ItemGroup>
 </Project>

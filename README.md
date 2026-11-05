@@ -52,3 +52,32 @@ midiInputClient.Open();
 midiInputClient.Close();
 midiInputClient.Dispose();
 ```
+# Native libraries
+
+The NuGet package includes the native RtMidi library for these platforms, so you don't need to build RtMidi yourself:
+
+| Platform | Runtime identifier | MIDI API |
+|:--|:--|:--|
+| Windows x64 / x86 / ARM64 | `win-x64`, `win-x86`, `win-arm64` | Windows MultiMedia |
+| Linux x64 / ARM64 / ARM32 (Raspberry Pi) | `linux-x64`, `linux-arm64`, `linux-arm` | ALSA |
+| macOS (Intel and Apple Silicon) | `osx` | CoreMIDI |
+
+On Linux, the library needs ALSA at runtime (`libasound2`), which is installed on most desktop distributions and on Raspberry Pi OS.
+
+## How they are built
+
+RtMidi is referenced as a git submodule in `external/rtmidi`, pinned to the version this wrapper supports. Clone with `git clone --recursive`, or run `git submodule update --init` in an existing clone.
+
+The `Build` GitHub Actions workflow compiles the library for every platform and packs it under `runtimes/<rid>/native` in the NuGet package. The Linux builds run in a Debian 11 container, so they work with glibc 2.31 or newer.
+
+To pack locally with your own builds, put them in `artifacts/native/<rid>/native/` (or pass `-p:RtMidiNativeDir=<folder>`) before running `dotnet pack`. To build the Linux library on your machine, run `.github/scripts/build-rtmidi-linux.sh artifacts/native/linux-x64/native`.
+
+To update RtMidi, check out the new tag in the submodule and commit it:
+
+```bash
+cd external/rtmidi
+git fetch --tags
+git checkout <tag>
+cd ../..
+git add external/rtmidi
+```
