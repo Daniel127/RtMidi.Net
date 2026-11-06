@@ -23,4 +23,6 @@ public enum MidiApi : byte
     WindowsUwp,
     /// <summary>Android MIDI API.</summary>
     Android,
+    /// <summary>Windows MIDI Services (Windows 11 25H2 and later; RtMidi 6.1).</summary>
+    WindowsMidiServices,
 }

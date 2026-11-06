@@ -127,10 +127,19 @@ jobs:
   test:
     name: Unit tests
     runs-on: ubuntu-latest
+    env:
+      # SonarCloud analysis with coverage runs only when the token is available
+      # (not on pull requests from forks). Automatic Analysis must be off in
+      # SonarCloud, or the scanner refuses to run.
+      HAS_SONAR_TOKEN: ${{ secrets.SONAR_TOKEN != '' }}
+      SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION || 'daniel127' }}
+      SONAR_PROJECT_KEY: Daniel127_RtMidi.Net
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: true
+          fetch-depth: 0   # full history for SonarCloud blame and new-code detection
+          persist-credentials: false
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: |
@@ -138,12 +147,40 @@ jobs:
             10.0.x
       - name: Build RtMidi (dummy API) for the interop tests
         run: .github/scripts/build-rtmidi-dummy.sh artifacts/test-native
+
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        if: env.HAS_SONAR_TOKEN == 'true'
+        with:
+          distribution: temurin
+          java-version: 17
+      # The scanner reads the token from the SONAR_TOKEN environment variable, so it
+      # is only given to these two steps and never appears on a command line.
+      - name: Start SonarCloud analysis
+        if: env.HAS_SONAR_TOKEN == 'true'
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          dotnet tool install --global dotnet-sonarscanner --version 12.1.0
+          dotnet sonarscanner begin \
+            /k:"$SONAR_PROJECT_KEY" /o:"$SONAR_ORGANIZATION" \
+            /d:sonar.host.url=https://sonarcloud.io \
+            /d:sonar.exclusions="external/**/*" \
+            /d:sonar.cs.vscoveragexml.reportsPaths="tests/RtMidi.Net.Tests/bin/Release/*/TestResults/coverage.xml" \
+            /d:sonar.cs.vstest.reportsPaths="tests/RtMidi.Net.Tests/bin/Release/*/TestResults/*.trx"
+
       - name: Test
         run: >
           dotnet test --project tests/RtMidi.Net.Tests --configuration Release
           -p:RtMidiTestLibrary=$PWD/artifacts/test-native/librtmidi.so
           --report-xunit-trx
-          --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml
+          --coverage --coverage-output-format xml --coverage-output coverage.xml
+
+      - name: Finish SonarCloud analysis
+        if: env.HAS_SONAR_TOKEN == 'true' && !cancelled()
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: dotnet sonarscanner end
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -213,7 +250,9 @@ jobs:
   # ---------------------------------------------------------------------------
   # Use the package on every platform: install it into a small app
   # (tests/RtMidi.Net.PackageTest), load RtMidi and, where virtual ports exist
-  # (ALSA, CoreMIDI), open a port, receive Note On/Off events and close.
+  # (ALSA, CoreMIDI), open a port, receive Note On/Off events and close, then
+  # stress the input callback: messages sent in a loop while clients turn the
+  # event on and off, poll and are disposed.
   # Windows MultiMedia has no virtual ports, so Windows lists the ports only.
   # The app is built for .NET 8 and .NET 10, so both library builds are used.
   # ---------------------------------------------------------------------------
@@ -277,7 +316,7 @@ jobs:
           sudo modprobe snd-seq || true
           if [[ -e /dev/snd/seq ]]; then
             sudo chmod a+rw /dev/snd/seq
-            echo "TEST_ARGS=--loopback" >> "$GITHUB_ENV"
+            echo "TEST_ARGS=--loopback --stress 20" >> "$GITHUB_ENV"
           else
             echo "::warning::/dev/snd/seq is not available on this runner; running the load test only"
             echo "TEST_ARGS=" >> "$GITHUB_ENV"
@@ -325,7 +364,7 @@ jobs:
         run: |
           for tfm in $TEST_FRAMEWORKS; do
             echo "::group::$tfm"
-            ./package-test/$tfm/RtMidi.Net.PackageTest --loopback
+            ./package-test/$tfm/RtMidi.Net.PackageTest --loopback --stress 20
             echo "::endgroup::"
           done
 

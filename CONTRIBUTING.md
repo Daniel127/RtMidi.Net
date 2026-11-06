@@ -48,13 +48,14 @@ dotnet test --project tests/RtMidi.Net.Tests -p:RtMidiTestLibrary=$PWD/artifacts
 
 - It loads RtMidi and lists the ports.
 - Where virtual ports exist (macOS, and Linux with the ALSA sequencer), it also runs a loopback. It opens a virtual port, connects a `MidiInputClient`, sends Note On/Note Off, checks that both arrive through `OnMessageReceived`, and closes.
+- On those platforms it also runs a stress test of the input callback (`--stress <seconds>`): it sends messages in a loop through a virtual port while input clients turn `OnMessageReceived` on and off, poll the queue, close and are disposed, and fails on a crash, an exception or a wrong message. GitHub's Linux runners have no ALSA sequencer, so in CI it runs on macOS only.
 - Windows has no virtual ports without a third-party driver, so it only lists the ports.
 
 To run it locally:
 
 ```bash
 dotnet pack RtMidi.Net/RtMidi.Net.csproj -c Release -o artifacts/nuget
-dotnet run --project tests/RtMidi.Net.PackageTest -f net10.0 -- --loopback
+dotnet run --project tests/RtMidi.Net.PackageTest -f net10.0 -- --loopback --stress 20
 ```
 
 ## Updating RtMidi
