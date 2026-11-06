@@ -1,11 +1,26 @@
-﻿using RtMidi.Net.Enums;
+﻿using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+
+// Every native signature below is blittable, so the runtime marshaller is not
+// needed: LibraryImport generates the stubs at compile time (trimming/AOT safe).
+[assembly: DisableRuntimeMarshalling]
 
 namespace RtMidi.Net.InteropServices;
 
-using RtMidiPtr = IntPtr;
-
-internal static class RtMidiInterop
+/// <summary>
+/// Native functions of the RtMidi C API (<c>rtmidi_c.h</c>, RtMidi 6.0).
+/// </summary>
+/// <remarks>
+/// <para>Types follow the C header exactly:</para>
+/// <list type="bullet">
+/// <item><c>enum RtMidiApi</c> is a C <c>int</c>, so APIs are passed as <see cref="int"/>
+/// (<see cref="Enums.MidiApi"/> is a byte-sized enum).</item>
+/// <item><c>bool</c> is the 1-byte C/C++ bool.</item>
+/// <item><c>size_t</c> is <see cref="nuint"/>.</item>
+/// <item>Strings are UTF-8.</item>
+/// </list>
+/// </remarks>
+internal static unsafe partial class RtMidiInterop
 {
     private const string RtMidiLibrary = "rtmidi";
 
@@ -14,264 +29,201 @@ internal static class RtMidiInterop
     /// <summary>
     /// <para>Determine the available compiled MIDI APIs.</para>
     /// <para>
-    /// If the given `apis` parameter is null, returns the number of available APIs.
-    /// Otherwise, fill the given apis array with the <see cref="MidiApi"/> values.
+    /// If <paramref name="apis"/> is null, returns the number of available APIs.
+    /// Otherwise, fills <paramref name="apis"/> (an array of C <c>enum RtMidiApi</c>, that is <c>int</c>).
     /// </para>
     /// </summary>
-    /// <param name="apis">An array or a null value.</param>
+    /// <param name="apis">An array or null.</param>
     /// <param name="apisSize">Number of elements pointed to by apis</param>
     /// <returns>
     /// Number of items needed for apis array if apis==NULL, or
     /// number of items written to apis array otherwise.  A negative
     /// return value indicates an error.
     /// </returns>
-    [DllImport(RtMidiLibrary, CallingConvention = CallingConvention.Cdecl)]
-    internal static extern int rtmidi_get_compiled_api(IntPtr apis, uint apisSize);
+    [LibraryImport(RtMidiLibrary)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial int rtmidi_get_compiled_api(int* apis, uint apisSize);
 
     /// <summary>
-    /// <para>Return the name of a specified compiled MIDI API.</para>
-    /// <para>
-    /// This obtains a short lower-case name used for identification purposes.
-    /// This value is guaranteed to remain identical across library versions.
-    /// </para>
+    /// Return the short lower-case name of a compiled MIDI API, or null if unknown.
     /// </summary>
-    /// <param name="api">The API</param>
-    /// <returns>
-    /// The API name
-    /// <para>If the API is unknown, this function will return the empty string.</para>
-    /// </returns>
-    [DllImport(RtMidiLibrary, CallingConvention = CallingConvention.Cdecl)]
-    internal static extern IntPtr rtmidi_api_name(MidiApi api);
+    [LibraryImport(RtMidiLibrary)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial IntPtr rtmidi_api_name(int api);
 
     /// <summary>
-    /// <para>Return the display name of a specified compiled MIDI API.</para>
-    /// <para>
-    /// This obtains a long name used for display purposes.
-    /// </para>
+    /// Return the display name of a compiled MIDI API ("Unknown" if unknown).
     /// </summary>
-    /// <param name="api">The API</param>
-    /// <returns>
-    /// The API display name
-    /// <para>If the API is unknown, this function will return the empty string.</para>
-    /// </returns>
-    [DllImport(RtMidiLibrary, CallingConvention = CallingConvention.Cdecl)]
-    internal static extern IntPtr rtmidi_api_display_name(MidiApi api);
+    [LibraryImport(RtMidiLibrary)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial IntPtr rtmidi_api_display_name(int api);
 
     /// <summary>
     /// Return the current RtMidi version.
     /// </summary>
-    /// <returns>RtMidi version.</returns>
-    [DllImport(RtMidiLibrary, CallingConvention = CallingConvention.Cdecl)]
-    internal static extern IntPtr rtmidi_get_version();
+    [LibraryImport(RtMidiLibrary)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial IntPtr rtmidi_get_version();
 
     /// <summary>
-    /// <para>Return the compiled MIDI API having the given name.</para>
-    /// <para>
-    /// A case insensitive comparison will check the specified name
-    /// against the list of compiled APIs.
-    /// </para>
+    /// Return the compiled MIDI API having the given short name (case-sensitive in RtMidi 6.0),
+    /// or <c>RTMIDI_API_UNSPECIFIED</c> if none matches.
     /// </summary>
-    /// <param name="name"></param>
-    /// <returns>
-    /// Return the one which matches.
-    /// <para>On failure, the function returns <see cref="MidiApi.Unspecified"/>.</para>
-    /// </returns>
-    [DllImport(RtMidiLibrary, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-    internal static extern MidiApi rtmidi_compiled_api_by_name(string name);
+    [LibraryImport(RtMidiLibrary, StringMarshalling = StringMarshalling.Utf8)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial int rtmidi_compiled_api_by_name(string name);
 
     /// <summary>
     /// Open a MIDI port.
     /// </summary>
-    /// <param name="rtMidiObject">Pointer to <see cref="RtMidiBase"/> object</param>
-    /// <param name="portNumber">Must be greater than 0</param>
-    /// <param name="portName">Name for the application port.</param>
-    [DllImport(RtMidiLibrary, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-    internal static extern void rtmidi_open_port(RtMidiPtr rtMidiObject, uint portNumber, string portName);
+    /// <param name="device">The RtMidi wrapper</param>
+    /// <param name="portNumber">The port number</param>
+    /// <param name="portName">Name for the application port. Must not be null.</param>
+    [LibraryImport(RtMidiLibrary, StringMarshalling = StringMarshalling.Utf8)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial void rtmidi_open_port(IntPtr device, uint portNumber, string portName);
 
     /// <summary>
     /// Creates a virtual MIDI port to which other software applications can connect.
     /// </summary>
-    /// <param name="rtMidiObject">Pointer to <see cref="RtMidiBase"/> object</param>
-    /// <param name="portName">Name for the application port.</param>
-    [DllImport(RtMidiLibrary, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-    internal static extern void rtmidi_open_virtual_port(RtMidiPtr rtMidiObject, string portName);
+    [LibraryImport(RtMidiLibrary, StringMarshalling = StringMarshalling.Utf8)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial void rtmidi_open_virtual_port(IntPtr device, string portName);
 
     /// <summary>
     /// Close a MIDI connection.
     /// </summary>
-    /// <param name="rtMidiObject">Pointer to <see cref="RtMidiBase"/> object</param>
-    [DllImport(RtMidiLibrary, CallingConvention = CallingConvention.Cdecl)]
-    internal static extern void rtmidi_close_port(RtMidiPtr rtMidiObject);
+    [LibraryImport(RtMidiLibrary)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial void rtmidi_close_port(IntPtr device);
 
     /// <summary>
     /// Return the number of available MIDI ports.
     /// </summary>
-    /// <param name="rtMidiObject">Pointer to <see cref="RtMidiBase"/> object</param>
-    /// <returns>This function returns the number of MIDI ports of the selected API.</returns>
-    [DllImport(RtMidiLibrary, CallingConvention = CallingConvention.Cdecl)]
-    internal static extern uint rtmidi_get_port_count(RtMidiPtr rtMidiObject);
+    [LibraryImport(RtMidiLibrary)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial uint rtmidi_get_port_count(IntPtr device);
 
     /// <summary>
-    /// <para>Access a string identifier for the specified MIDI port number.</para>
-    /// <para>
-    /// To prevent memory leaks a char buffer must be passed to this function.
-    /// NULL can be passed as bufOut parameter, and that will write the required buffer length in the bufLen.
-    /// </para>
+    /// <para>Copy the name of a MIDI port into <paramref name="bufOut"/> (UTF-8, null terminated).</para>
+    /// <para>If <paramref name="bufOut"/> is null, writes the required buffer length (including the terminator) to <paramref name="bufLen"/>.</para>
     /// </summary>
-    /// <param name="rtMidiObject">Pointer to <see cref="RtMidiBase"/> object</param>
-    /// <param name="portNumber">MIDI port number</param>
-    /// <param name="bufOut">OUT value with the name</param>
-    /// <param name="bufLen">OUT value with the name size</param>
-    /// <returns>
-    /// The name of the port with the given Id is returned.
-    /// <para>
-    /// An empty string is returned if an invalid port specifier
-    /// is provided. User code should assume a UTF-8 encoding.
-    /// </para>
-    /// </returns>
-    [DllImport(RtMidiLibrary, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-    internal static extern int rtmidi_get_port_name(RtMidiPtr rtMidiObject, uint portNumber, IntPtr bufOut, ref uint bufLen);
+    /// <returns>-1 on error.</returns>
+    [LibraryImport(RtMidiLibrary)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial int rtmidi_get_port_name(IntPtr device, uint portNumber, byte* bufOut, int* bufLen);
 
     #endregion
 
     #region RtMidiIn
 
     /// <summary>
-    /// Create a default RtMidiInPtr value, with no initialization.
+    /// Create a default RtMidiIn.
     /// </summary>
-    /// <returns>The RtMidiPtr created</returns>
-    [DllImport(RtMidiLibrary, CallingConvention = CallingConvention.Cdecl)]
-    internal static extern RtMidiPtr rtmidi_in_create_default();
+    [LibraryImport(RtMidiLibrary)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial IntPtr rtmidi_in_create_default();
 
     /// <summary>
-    /// Create a  RtMidiInPtr value, with given api, clientName and queueSizeLimit.
+    /// Create a RtMidiIn with the given api, client name and queue size limit.
     /// </summary>
-    /// <param name="api">An optional API id can be specified.</param>
-    /// <param name="clientName">
-    /// An optional client name can be specified. This
-    /// will be used to group the ports that are created
-    /// by the application.</param>
-    /// <param name="queueSizeLimit">
-    /// An optional size of the MIDI input queue can be
-    /// specified.</param>
-    /// <returns>The RtMidiPtr created</returns>
-    [DllImport(RtMidiLibrary, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-    internal static extern RtMidiPtr rtmidi_in_create(MidiApi api, string clientName, uint queueSizeLimit);
+    [LibraryImport(RtMidiLibrary, StringMarshalling = StringMarshalling.Utf8)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial IntPtr rtmidi_in_create(int api, string clientName, uint queueSizeLimit);
 
     /// <summary>
-    /// Free the given RtMidiInPtr
+    /// Free the given RtMidiIn.
     /// </summary>
-    /// <param name="rtMidiObject">Pointer to <see cref="RtMidiIn"/> object</param>
-    [DllImport(RtMidiLibrary, CallingConvention = CallingConvention.Cdecl)]
-    internal static extern void rtmidi_in_free(RtMidiPtr rtMidiObject);
+    [LibraryImport(RtMidiLibrary)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial void rtmidi_in_free(IntPtr device);
 
     /// <summary>
-    /// Returns the MIDI API specifier for the given instance of RtMidiIn.
+    /// Returns the MIDI API of the given RtMidiIn.
     /// </summary>
-    /// <param name="rtMidiObject">Pointer to <see cref="RtMidiIn"/> object</param>
-    /// <returns>The <see cref="MidiApi"/> value</returns>
-    [DllImport(RtMidiLibrary, CallingConvention = CallingConvention.Cdecl)]
-    internal static extern MidiApi rtmidi_in_get_current_api(RtMidiPtr rtMidiObject);
+    [LibraryImport(RtMidiLibrary)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial int rtmidi_in_get_current_api(IntPtr device);
 
     /// <summary>
     /// Set a callback function to be invoked for incoming MIDI messages.
     /// </summary>
-    /// <param name="rtMidiObject">Pointer to <see cref="RtMidiIn"/> object</param>
-    /// <param name="callback">A callback function must be given.</param>
-    /// <param name="userData">Optionally, a pointer to additional data can be
-    /// passed to the callback function whenever it is called.</param>
-    [DllImport(RtMidiLibrary, CallingConvention = CallingConvention.Cdecl)]
-    internal static extern void rtmidi_in_set_callback(RtMidiPtr rtMidiObject, RtMidiCallback callback, byte[]? userData);
+    /// <param name="device">The RtMidiIn wrapper</param>
+    /// <param name="callback"><c>void (*)(double timeStamp, const unsigned char* message, size_t messageSize, void* userData)</c></param>
+    /// <param name="userData">Passed back to the callback.</param>
+    [LibraryImport(RtMidiLibrary)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial void rtmidi_in_set_callback(IntPtr device,
+        delegate* unmanaged[Cdecl]<double, byte*, nuint, IntPtr, void> callback, IntPtr userData);
 
     /// <summary>
     /// Cancel use of the current callback function (if one exists).
     /// </summary>
-    /// <param name="rtMidiObject">Pointer to <see cref="RtMidiIn"/> object</param>
-    [DllImport(RtMidiLibrary, CallingConvention = CallingConvention.Cdecl)]
-    internal static extern void rtmidi_in_cancel_callback(RtMidiPtr rtMidiObject);
+    [LibraryImport(RtMidiLibrary)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial void rtmidi_in_cancel_callback(IntPtr device);
 
     /// <summary>
-    /// Specify whether certain MIDI message types should be queued or ignored during input.
-    /// <remarks>
-    /// By default, MIDI timing and active sensing messages are ignored
-    /// during message input because of their relative high data rates.
-    /// MIDI sysex messages are ignored by default as well.  Variable
-    /// values of "true" imply that the respective message type will be
-    /// ignored.
-    /// </remarks>
+    /// Specify whether certain MIDI message types should be ignored during input
+    /// (true means ignored).
     /// </summary>
-    /// <param name="rtMidiObject">Pointer to <see cref="RtMidiIn"/> object</param>
-    /// <param name="midiSysex">Ignore midi Sysex messages?</param>
-    /// <param name="midiTime">Ignore midi Time messages?</param>
-    /// <param name="midiSense">Ignore midi Sense messages?</param>
-    [DllImport(RtMidiLibrary, CallingConvention = CallingConvention.Cdecl)]
-    internal static extern void rtmidi_in_ignore_types(RtMidiPtr rtMidiObject, bool midiSysex, bool midiTime, bool midiSense);
+    [LibraryImport(RtMidiLibrary)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial void rtmidi_in_ignore_types(IntPtr device,
+        [MarshalAs(UnmanagedType.U1)] bool midiSysex,
+        [MarshalAs(UnmanagedType.U1)] bool midiTime,
+        [MarshalAs(UnmanagedType.U1)] bool midiSense);
 
     /// <summary>
-    /// Fill the user-provided array with the data bytes for the next available
-    /// MIDI message in the input queue and return the event delta-time in seconds.
+    /// Copy the next available MIDI message in the input queue into <paramref name="message"/>
+    /// and return its delta-time in seconds.
     /// </summary>
-    /// <param name="rtMidiObject">Pointer to <see cref="RtMidiIn"/> object</param>
-    /// <param name="message">Must point to a char* that is already allocated.
-    /// SYSEX messages maximum size being 1024, a statically
-    /// allocated array could be sufficient.</param>
-    /// <param name="size">Is used to return the size of the message obtained.
-    /// Must be set to the size of <paramref name="message"/> when calling.</param>
-    /// <returns>Timestamp of messages</returns>
-    [DllImport(RtMidiLibrary, CallingConvention = CallingConvention.Cdecl)]
-    internal static extern double rtmidi_in_get_message(RtMidiPtr rtMidiObject, IntPtr message, ref int size);
+    /// <param name="device">The RtMidiIn wrapper</param>
+    /// <param name="message">Buffer for the message.</param>
+    /// <param name="size">In: size of <paramref name="message"/>. Out: size of the message
+    /// (0 if the queue is empty). If it is larger than the buffer, nothing is copied.</param>
+    [LibraryImport(RtMidiLibrary)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial double rtmidi_in_get_message(IntPtr device, byte* message, nuint* size);
 
     #endregion
 
     #region RtMidiOut
 
     /// <summary>
-    /// Create a default RtMidiOutPtr value, with no initialization.
+    /// Create a default RtMidiOut.
     /// </summary>
-    /// <returns>The RtMidiOutPtr created</returns>
-    [DllImport(RtMidiLibrary, CallingConvention = CallingConvention.Cdecl)]
-    internal static extern RtMidiPtr rtmidi_out_create_default();
+    [LibraryImport(RtMidiLibrary)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial IntPtr rtmidi_out_create_default();
 
     /// <summary>
-    /// Create a RtMidiOutPtr value, with given and clientName.
+    /// Create a RtMidiOut with the given api and client name.
     /// </summary>
-    /// <param name="api">An optional API id can be specified.</param>
-    /// <param name="clientName">An optional client name can be specified. This
-    /// will be used to group the ports that are created
-    /// by the application.</param>
-    /// <returns>The RtMidiOutPtr created</returns>
-    [DllImport(RtMidiLibrary, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-    internal static extern RtMidiPtr rtmidi_out_create(MidiApi api, string clientName);
+    [LibraryImport(RtMidiLibrary, StringMarshalling = StringMarshalling.Utf8)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial IntPtr rtmidi_out_create(int api, string clientName);
 
     /// <summary>
-    /// Free the given RtMidiOutPtr.
+    /// Free the given RtMidiOut.
     /// </summary>
-    /// <param name="rtMidiObject">Pointer to <see cref="RtMidiOut"/> object</param>
-    [DllImport(RtMidiLibrary, CallingConvention = CallingConvention.Cdecl)]
-    internal static extern void rtmidi_out_free(RtMidiPtr rtMidiObject);
+    [LibraryImport(RtMidiLibrary)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial void rtmidi_out_free(IntPtr device);
 
     /// <summary>
-    /// Returns the MIDI API specifier for the given instance of RtMidiOut.
+    /// Returns the MIDI API of the given RtMidiOut.
     /// </summary>
-    /// <param name="rtMidiObject">Pointer to <see cref="RtMidiOut"/> object</param>
-    /// <returns>The <see cref="MidiApi"/> value</returns>
-    [DllImport(RtMidiLibrary, CallingConvention = CallingConvention.Cdecl)]
-    internal static extern MidiApi rtmidi_out_get_current_api(RtMidiPtr rtMidiObject);
+    [LibraryImport(RtMidiLibrary)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial int rtmidi_out_get_current_api(IntPtr device);
 
     /// <summary>
     /// Immediately send a single message out an open MIDI output port.
     /// </summary>
-    /// <remarks>
-    /// An exception is thrown if an error occurs during output or an
-    /// output connection was not previously established.
-    /// </remarks>
-    /// <param name="rtMidiObject">Pointer to <see cref="RtMidiOut"/> object</param>
-    /// <param name="message">A pointer to the MIDI message as raw bytes</param>
-    /// <param name="length">Length of the MIDI message in bytes</param>
-    /// <returns></returns>
-    [DllImport(RtMidiLibrary, CallingConvention = CallingConvention.Cdecl)]
-    internal static extern int rtmidi_out_send_message(RtMidiPtr rtMidiObject, byte[] message, int length);
+    [LibraryImport(RtMidiLibrary)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial int rtmidi_out_send_message(IntPtr device, byte* message, int length);
 
     #endregion
-
 }

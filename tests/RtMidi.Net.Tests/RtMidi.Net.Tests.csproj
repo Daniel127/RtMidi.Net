@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <!--
+      Unit tests that need no MIDI device and no native RtMidi library:
+      message parsing/encoding, notes, the polling logic and argument checks.
+    -->
+    <PropertyGroup>
+        <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <OutputType>Exe</OutputType>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
+
+    <!--
+      Optional native RtMidi library for the tests in Native/ (e.g. one built with the
+      dummy API, which needs no MIDI system): -p:RtMidiTestLibrary=path/to/librtmidi.so
+      Without it those tests are skipped.
+    -->
+    <ItemGroup Condition="'$(RtMidiTestLibrary)' != ''">
+        <None Include="$(RtMidiTestLibrary)" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+    </ItemGroup>
+
+    <!-- Microsoft.Testing.Platform (see global.json): `dotnet test` runs the xUnit v3 executable directly. -->
+    <ItemGroup>
+        <PackageReference Include="xunit.v3" Version="4.0.2" />
+        <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.12.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Using Include="Xunit" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\RtMidi.Net\RtMidi.Net.csproj" />
+    </ItemGroup>
+</Project>

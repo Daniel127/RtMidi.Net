@@ -1,10 +1,12 @@
-using RtMidi.Net.Enums;
+using System.Diagnostics.CodeAnalysis;
 using RtMidi.Net.Events;
 using RtMidi.Net.InteropServices;
-using System.Diagnostics;
 
 namespace RtMidi.Net.Clients;
 
+/// <summary>
+/// Receives MIDI messages from an input port, through <see cref="OnMessageReceived"/> or by polling.
+/// </summary>
 public class MidiInputClient : MidiClient
 {
     private readonly RtMidiIn _rtMidiInClient;
@@ -12,36 +14,53 @@ public class MidiInputClient : MidiClient
     private bool _ignoreTimeMessages = true;
     private bool _ignoreSenseMessages = true;
 
+    /// <summary>
+    /// Ignore System Exclusive messages (default true).
+    /// </summary>
     public bool IgnoreSysexMessages
     {
         get => _ignoreSysexMessages;
         set
         {
             _ignoreSysexMessages = value;
-            IgnoreMessageTypes(_ignoreSysexMessages, _ignoreTimeMessages, _ignoreSenseMessages);
+            UpdateIgnoredTypes();
         }
     }
 
+    /// <summary>
+    /// Ignore timing messages: MIDI Time Code and Timing Clock (default true).
+    /// </summary>
     public bool IgnoreTimeMessages
     {
         get => _ignoreTimeMessages;
         set
         {
             _ignoreTimeMessages = value;
-            IgnoreMessageTypes(_ignoreSysexMessages, _ignoreTimeMessages, _ignoreSenseMessages);
+            UpdateIgnoredTypes();
         }
     }
 
+    /// <summary>
+    /// Ignore Active Sensing messages (default true).
+    /// </summary>
     public bool IgnoreSenseMessages
     {
         get => _ignoreSenseMessages;
         set
         {
             _ignoreSenseMessages = value;
-            IgnoreMessageTypes(_ignoreSysexMessages, _ignoreTimeMessages, _ignoreSenseMessages);
+            UpdateIgnoredTypes();
         }
     }
 
+    /// <summary>
+    /// Raised on RtMidi's thread for every message, after <see cref="ActivateMessageReceivedEvent"/>.
+    /// </summary>
+    /// <remarks>
+    /// The timestamp is the delta-time since the previous message. An exception thrown
+    /// by a handler is caught and written to <see cref="System.Diagnostics.Trace"/>,
+    /// because it can't propagate through the native library.
+    /// </remarks>
     public event EventHandler<MidiMessageReceivedEventArgs>? OnMessageReceived;
 
     /// <summary>
@@ -53,118 +72,69 @@ public class MidiInputClient : MidiClient
         _rtMidiInClient = (RtMidiIn)RtMidiClient;
     }
 
+    /// <summary>
+    /// Creates a client for the given input device. Call <see cref="MidiClient.Open"/> to connect.
+    /// </summary>
     public MidiInputClient(MidiDeviceInfo deviceInfo) : base(deviceInfo, new RtMidiIn())
     {
         _rtMidiInClient = (RtMidiIn)RtMidiClient;
     }
 
+    /// <summary>
+    /// Starts raising <see cref="OnMessageReceived"/>. While it is active, the polling methods receive nothing.
+    /// </summary>
     public void ActivateMessageReceivedEvent()
     {
-        _rtMidiInClient.SetCallback(InternalMessageReceived, null);
+        _rtMidiInClient.SetCallback(InternalMessageReceived);
     }
 
+    /// <summary>
+    /// Stops raising <see cref="OnMessageReceived"/>; new messages go to the queue read by the polling methods.
+    /// </summary>
     public void DeactivateMessageReceivedEvent()
     {
         _rtMidiInClient.CancelCallback();
     }
 
-    private void IgnoreMessageTypes(bool sysex, bool time, bool sense)
+    private void UpdateIgnoredTypes()
     {
-        _rtMidiInClient.IgnoreTypes(sysex, time, sense);
+        _rtMidiInClient.IgnoreTypes(_ignoreSysexMessages, _ignoreTimeMessages, _ignoreSenseMessages);
     }
 
-    private void InternalMessageReceived(double timestamp, IntPtr messagePtr, UIntPtr messageSize, IntPtr userDataPtr)
+    private void InternalMessageReceived(double timestamp, ReadOnlySpan<byte> messageData)
     {
-        var messageData = new byte[(int)messageSize];
-        System.Runtime.InteropServices.Marshal.Copy(messagePtr, messageData, 0, (int)messageSize);
-        var message = ConvertMessage(messageData);
-        var midiEventArgs = new MidiMessageReceivedEventArgs(message, TimeSpan.FromSeconds(timestamp));
-        OnMessageReceived?.Invoke(this, midiEventArgs);
+        var message = MidiMessageConverter.Parse(messageData);
+        OnMessageReceived?.Invoke(this, new MidiMessageReceivedEventArgs(message, TimeSpan.FromSeconds(timestamp)));
     }
 
+    /// <summary>
+    /// Takes the next message from the input queue, if there is one. Returns immediately.
+    /// </summary>
+    /// <param name="message">The message, or null if the queue is empty.</param>
+    /// <param name="timestamp">Delta-time since the previous message.</param>
+    /// <returns>true if a message was read.</returns>
+    public bool TryGetMessage([NotNullWhen(true)] out MidiMessage? message, out TimeSpan timestamp)
+    {
+        return MessagePolling.TryRead(_rtMidiInClient.GetMessage, out message, out timestamp);
+    }
+
+    /// <summary>
+    /// Waits for the next message from the input queue.
+    /// </summary>
+    /// <returns>The message and its delta-time since the previous message.</returns>
     public (MidiMessage, TimeSpan) GetMessage()
     {
-        Stopwatch stopwatch = new();
-        byte[] messageData;
-        stopwatch.Start();
-        do
-        {
-            (messageData, _) = _rtMidiInClient.GetMessage();
-        } while (messageData.Length == 0);
-        stopwatch.Stop();
-        var timestamp = TimeSpan.FromSeconds(stopwatch.Elapsed.TotalSeconds);
-        return (ConvertMessage(messageData), timestamp);
+        return MessagePolling.Wait(_rtMidiInClient.GetMessage, CancellationToken.None);
     }
 
-    public async Task<(MidiMessage, TimeSpan)> GetMessageAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Waits for the next message from the input queue without blocking a thread.
+    /// </summary>
+    /// <param name="cancellationToken">Stops waiting.</param>
+    /// <returns>The message and its delta-time since the previous message.</returns>
+    /// <exception cref="OperationCanceledException">The token was cancelled before a message arrived.</exception>
+    public Task<(MidiMessage, TimeSpan)> GetMessageAsync(CancellationToken cancellationToken)
     {
-        return await Task.Run(() =>
-        {
-            Stopwatch stopwatch = new();
-            byte[] messageData;
-
-            stopwatch.Start();
-            do
-            {
-                (messageData, _) = _rtMidiInClient.GetMessage();
-            } while (!cancellationToken.IsCancellationRequested && messageData.Length == 0);
-            stopwatch.Stop();
-
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var timestamp = TimeSpan.FromSeconds(stopwatch.Elapsed.TotalSeconds);
-            return (ConvertMessage(messageData), timestamp);
-        }, cancellationToken);
-    }
-
-
-    private static MidiMessage ConvertMessage(IReadOnlyList<byte> message)
-    {
-        MidiMessageType type;
-
-        if (message[0] is >= (byte)MidiMessageType.NoteOff and < (byte)MidiMessageType.SystemExclusive)
-        {
-            var channel = (MidiChannel)(0b_0000_1111 & message[0]);
-            type = (MidiMessageType)(0b_1111_0000 & message[0]);
-
-            switch (type)
-            {
-                case MidiMessageType.NoteOff:
-                case MidiMessageType.NoteOn:
-                    return new MidiMessageNote(channel, new MidiNote(message[1]), message[2], type);
-                case MidiMessageType.PolyphonicKeyPressure:
-                    return new MidiMessageNoteAfterTouch(channel, new MidiNote(message[1]), message[2]);
-                case MidiMessageType.ProgramChange:
-                    return new MidiMessageProgramChange(channel, message[1]);
-                case MidiMessageType.ChannelPressure:
-                    return new MidiMessageChannelAfterTouch(channel, message[1]);
-                case MidiMessageType.PitchBendChange:
-                    return new MidiMessagePitchBendChange(channel, message[1], message[2]);
-                case MidiMessageType.ControlChange:
-                    return new MidiMessageControlChange(channel, message[1], message[2]);
-                default:
-                    throw new Exception("Type is out of range");
-            }
-        }
-
-        if (!Enum.IsDefined(typeof(MidiMessageType), message[0]))
-        {
-            return new MidiMessageUnknown(message.ToArray());
-        }
-
-        type = (MidiMessageType)message[0];
-        switch (type)
-        {
-            case MidiMessageType.SystemExclusive:
-                return new MidiMessageSystemExclusive(message.ToArray());
-            case MidiMessageType.SongPositionPointer:
-                return new MidiMessageSongPositionPointer(message[1], message[2]);
-            case MidiMessageType.SongSelect:
-                return new MidiMessageSongSelect(message[1]);
-            case MidiMessageType.TimeCodeQuarterFrame:
-                throw new NotImplementedException();
-            default:
-                return new MidiMessage(type);
-        }
+        return MessagePolling.WaitAsync(_rtMidiInClient.GetMessage, cancellationToken);
     }
 }

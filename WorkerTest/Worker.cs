@@ -9,7 +9,7 @@ public class Worker : BackgroundService
 {
     private readonly ILogger<Worker> _logger;
     private MidiInputClient? _midiInputClient;
-    private const bool UseEventHandler = true; //Change to test
+    private static readonly bool UseEventHandler = true; //Change to test
 
     /// <summary>
     /// Constructor
@@ -24,14 +24,14 @@ public class Worker : BackgroundService
     {
         _logger.LogInformation("Starting");
         var rtMidiVersion = MidiManager.GetRtMidiVersion();
-        _logger.LogInformation("RtMidi version: {rtMidiVersion}", rtMidiVersion);
+        _logger.LogInformation("RtMidi version: {RtMidiVersion}", rtMidiVersion);
         var devices = MidiManager.GetAvailableDevices();
-        if (devices.Any())
+        if (devices.Count > 0)
         {
             _logger.LogInformation("Available devices:");
             foreach (var d in devices.OrderBy(info => info.Port))
             {
-                _logger.LogInformation("{port}) {name} - {type}", d.Port, d.Name, d.Type);
+                _logger.LogInformation("{Port}) {Name} - {Type}", d.Port, d.Name, d.Type);
             }
 
             var devicePort = 1u; //Change device to test
@@ -46,9 +46,8 @@ public class Worker : BackgroundService
         }
         else
         {
-            var exception = new Exception("No Midi devices found");
-            _logger.LogError(exception, "No Midi devices found");
-            throw exception;
+            _logger.LogError("No MIDI devices found");
+            throw new InvalidOperationException("No MIDI devices found");
         }
 
         await base.StartAsync(cancellationToken);
@@ -86,11 +85,11 @@ public class Worker : BackgroundService
         {
             const int offset = 21;
             var note = message.Note.GetByteRepresentation() - offset;
-            _logger.LogInformation("{noteName} - {messageType}, Note number: {noteNumber}", message.Note.GetName(), message.Type, note);
+            _logger.LogInformation("{NoteName} - {MessageType}, Note number: {NoteNumber}", message.Note.GetName(), message.Type, note);
         }
         else
         {
-            _logger.LogInformation("{messageType}", midiMessage.Type);
+            _logger.LogInformation("{MessageType}", midiMessage.Type);
         }
     }
 }
