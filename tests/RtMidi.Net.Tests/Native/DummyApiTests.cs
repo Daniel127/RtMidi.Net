@@ -207,7 +207,9 @@ public class DummyApiTests
 
         for (var i = 0; i < 10 && reference.IsAlive; i++)
         {
+#pragma warning disable S1215 // forcing a collection is what this test checks
             GC.Collect();
+#pragma warning restore S1215
             GC.WaitForPendingFinalizers();
         }
 

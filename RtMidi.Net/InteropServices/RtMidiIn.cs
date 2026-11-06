@@ -103,8 +103,7 @@ internal sealed class RtMidiIn : RtMidiBase
         _handler = handler;
         if (_callbackToken == 0)
         {
-            _callbackToken = (nint)Interlocked.Increment(ref _lastCallbackToken);
-            CallbackRegistry[_callbackToken] = new WeakReference<RtMidiIn>(this);
+            _callbackToken = RegisterCallbackTarget(this);
         }
 
         RtMidiInterop.rtmidi_in_set_callback(RtMidiPtr, NativeCallbackPointer, _callbackToken);
@@ -212,6 +211,13 @@ internal sealed class RtMidiIn : RtMidiBase
     /// The user data RtMidi passes to the callback (for tests).
     /// </summary>
     internal IntPtr CallbackUserData => _callbackToken;
+
+    private static nint RegisterCallbackTarget(RtMidiIn target)
+    {
+        var token = (nint)Interlocked.Increment(ref _lastCallbackToken);
+        CallbackRegistry[token] = new WeakReference<RtMidiIn>(target);
+        return token;
+    }
 
     private void UnregisterCallback()
     {
