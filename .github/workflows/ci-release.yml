@@ -127,10 +127,18 @@ jobs:
   test:
     name: Unit tests
     runs-on: ubuntu-latest
+    env:
+      # SonarCloud analysis with coverage runs only when the token is available
+      # (not on pull requests from forks). Automatic Analysis must be off in
+      # SonarCloud, or the scanner refuses to run.
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION || 'daniel127' }}
+      SONAR_PROJECT_KEY: Daniel127_RtMidi.Net
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: true
+          fetch-depth: 0   # full history for SonarCloud blame and new-code detection
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: |
@@ -138,12 +146,35 @@ jobs:
             10.0.x
       - name: Build RtMidi (dummy API) for the interop tests
         run: .github/scripts/build-rtmidi-dummy.sh artifacts/test-native
+
+      - uses: actions/setup-java@v4
+        if: env.SONAR_TOKEN != ''
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Start SonarCloud analysis
+        if: env.SONAR_TOKEN != ''
+        run: |
+          dotnet tool install --global dotnet-sonarscanner
+          dotnet sonarscanner begin \
+            /k:"$SONAR_PROJECT_KEY" /o:"$SONAR_ORGANIZATION" \
+            /d:sonar.host.url=https://sonarcloud.io \
+            /d:sonar.token="$SONAR_TOKEN" \
+            /d:sonar.exclusions="external/**/*" \
+            /d:sonar.cs.vscoveragexml.reportsPaths="tests/RtMidi.Net.Tests/bin/Release/*/TestResults/coverage.xml" \
+            /d:sonar.cs.vstest.reportsPaths="tests/RtMidi.Net.Tests/bin/Release/*/TestResults/*.trx"
+
       - name: Test
         run: >
           dotnet test --project tests/RtMidi.Net.Tests --configuration Release
           -p:RtMidiTestLibrary=$PWD/artifacts/test-native/librtmidi.so
           --report-xunit-trx
-          --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml
+          --coverage --coverage-output-format xml --coverage-output coverage.xml
+
+      - name: Finish SonarCloud analysis
+        if: env.SONAR_TOKEN != '' && !cancelled()
+        run: dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
