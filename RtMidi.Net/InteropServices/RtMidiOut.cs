@@ -16,7 +16,7 @@ internal class RtMidiOut : RtMidiBase
     /// <summary>
     /// Default constructor
     /// </summary>
-    public RtMidiOut() : base(RtMidiInterop.rtmidi_out_create_default())
+    public RtMidiOut() : base(EnsureCreated(RtMidiInterop.rtmidi_out_create_default(), RtMidiInterop.rtmidi_out_free))
     {
     }
 
@@ -33,7 +33,7 @@ internal class RtMidiOut : RtMidiBase
     /// <param name="api">The api</param>
     /// <param name="clientName">The client name</param>
     public RtMidiOut(MidiApi api, string clientName)
-        : base(RtMidiInterop.rtmidi_out_create(api, clientName))
+        : base(EnsureCreated(RtMidiInterop.rtmidi_out_create(api, clientName), RtMidiInterop.rtmidi_out_free))
     {
     }
 
@@ -51,8 +51,8 @@ internal class RtMidiOut : RtMidiBase
     /// <param name="message">Message to send</param>
     public void SendMessage(byte[] message)
     {
-        var result = RtMidiInterop.rtmidi_out_send_message(RtMidiPtr, message, message.Length);
-        if (result == -1) throw new Exception();
+        RtMidiInterop.rtmidi_out_send_message(RtMidiPtr, message, message.Length);
+        ThrowIfError();
     }
 
     /// <inheritdoc />

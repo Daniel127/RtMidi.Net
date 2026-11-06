@@ -3,24 +3,19 @@
 [SonarDashboardLink]: https://sonarcloud.io/dashboard?id=Daniel127_RtMidi.Net
 [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=Daniel127_RtMidi.Net&metric=alert_status)][SonarDashboardLink] [![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=Daniel127_RtMidi.Net&metric=ncloc)][SonarDashboardLink] [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=Daniel127_RtMidi.Net&metric=bugs)][SonarDashboardLink] [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=Daniel127_RtMidi.Net&metric=coverage)][SonarDashboardLink] [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=Daniel127_RtMidi.Net&metric=sqale_rating)][SonarDashboardLink]
 
-[GitHubBadgeMaster]: https://github.com/Daniel127/RtMidi.Net/workflows/Build/badge.svg?branch=main
-[GitHubBadgeDevelop]: https://github.com/Daniel127/RtMidi.Net/workflows/Build/badge.svg?branch=develop
-[GitHubActionsLink]: https://github.com/Daniel127/RtMidi.Net/actions?query=workflow%3ABuild
-
-[AzureBadgeMaster]: https://dev.azure.com/Daniel127/RtMidi.Net/_apis/build/status/CI-Release?branchName=main
-[AzurePipelineMaster]: https://dev.azure.com/Daniel127/RtMidi.Net/_build/latest?definitionId=12&branchName=main
-[AzureBadgeDevelop]: https://dev.azure.com/Daniel127/RtMidi.Net/_apis/build/status/CI-Development?branchName=develop
-[AzurePipelineDevelop]: https://dev.azure.com/Daniel127/RtMidi.Net/_build/latest?definitionId=11&branchName=develop
+[GitHubBadgeMaster]: https://github.com/Daniel127/RtMidi.Net/actions/workflows/ci-release.yml/badge.svg?branch=main
+[GitHubBadgeDevelop]: https://github.com/Daniel127/RtMidi.Net/actions/workflows/ci-release.yml/badge.svg?branch=develop
+[GitHubActionsLink]: https://github.com/Daniel127/RtMidi.Net/actions/workflows/ci-release.yml
 
 [NugetUrl]: https://www.nuget.org/packages/RtMidi.Net
-[NugetBadge]: https://feeds.dev.azure.com/Daniel127/8422bbcb-06b4-4da0-bb49-3b51aab2d4bc/_apis/public/Packaging/Feeds/RtMidi.Net/Packages/5bb5e570-4239-4a73-b928-d291ec05a9e3/Badge
+[NugetBadge]: https://img.shields.io/nuget/v/RtMidi.Net
 
 [RtMidiUrl]: https://github.com/thestk/rtmidi
 
 | Branch | Build | Deployment |
 |:----:|:-------------:|:----:|
-| main | [![Build][GitHubBadgeMaster]][GitHubActionsLink]  [![Build Status][AzureBadgeMaster]][AzurePipelineMaster] | [![Nuget package][NugetBadge]][NugetUrl] |
-| develop | [![Build][GitHubBadgeDevelop]][GitHubActionsLink]  [![Build Status][AzureBadgeDevelop]][AzurePipelineDevelop] | N/A |
+| main | [![Build][GitHubBadgeMaster]][GitHubActionsLink] | [![Nuget package][NugetBadge]][NugetUrl] |
+| develop | [![Build][GitHubBadgeDevelop]][GitHubActionsLink] | N/A |
 
 
 # What is it?
@@ -52,3 +47,16 @@ midiInputClient.Open();
 midiInputClient.Close();
 midiInputClient.Dispose();
 ```
+# Native libraries
+
+The NuGet package includes the native RtMidi library for these platforms, so you don't need to build RtMidi yourself:
+
+| Platform | Runtime identifier | MIDI API |
+|:--|:--|:--|
+| Windows x64 / x86 / ARM64 | `win-x64`, `win-x86`, `win-arm64` | Windows MultiMedia |
+| Linux x64 / ARM64 / ARM32 (Raspberry Pi) | `linux-x64`, `linux-arm64`, `linux-arm` | ALSA |
+| macOS (Intel and Apple Silicon) | `osx` | CoreMIDI |
+
+On Linux, the library needs ALSA at runtime (`libasound2`), which is installed on most desktop distributions and on Raspberry Pi OS.
+
+If you want to build the library or the native binaries yourself, see [CONTRIBUTING.md](CONTRIBUTING.md).

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <!--
+      Test of the published NuGet package: checks that the native RtMidi
+      library for the current platform is inside the package and works
+      (load, list ports, virtual-port loopback with Note On/Off events).
+      It references the package (not the project) so it tests exactly what users get.
+      Run with a local feed that contains the .nupkg, see nuget.config.
+    -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Floating version: whatever package is in the local feed. -->
+        <PackageReference Include="RtMidi.Net" Version="*-*" />
+    </ItemGroup>
+</Project>

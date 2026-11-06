@@ -25,7 +25,7 @@ internal class RtMidiIn : RtMidiBase
     /// <summary>
     /// Default constructor
     /// </summary>
-    public RtMidiIn() : base(RtMidiInterop.rtmidi_in_create_default())
+    public RtMidiIn() : base(EnsureCreated(RtMidiInterop.rtmidi_in_create_default(), RtMidiInterop.rtmidi_in_free))
     {
     }
 
@@ -49,7 +49,7 @@ internal class RtMidiIn : RtMidiBase
     /// <param name="clientName"></param>
     /// <param name="queueSizeLimit"></param>
     public RtMidiIn(MidiApi api, string clientName, uint queueSizeLimit = 100)
-        : base(RtMidiInterop.rtmidi_in_create(api, clientName, queueSizeLimit))
+        : base(EnsureCreated(RtMidiInterop.rtmidi_in_create(api, clientName, queueSizeLimit), RtMidiInterop.rtmidi_in_free))
     {
     }
 
@@ -75,6 +75,7 @@ internal class RtMidiIn : RtMidiBase
     {
         _midiCallback = callback;
         RtMidiInterop.rtmidi_in_set_callback(RtMidiPtr, callback, userData);
+        ThrowIfError();
     }
 
     /// <summary>
@@ -87,6 +88,7 @@ internal class RtMidiIn : RtMidiBase
     public void CancelCallback()
     {
         RtMidiInterop.rtmidi_in_cancel_callback(RtMidiPtr);
+        ThrowIfError();
     }
 
     /// <summary>
@@ -105,6 +107,7 @@ internal class RtMidiIn : RtMidiBase
     public void IgnoreTypes(bool midiSysex = true, bool midiTime = true, bool midiSense = true)
     {
         RtMidiInterop.rtmidi_in_ignore_types(RtMidiPtr, midiSysex, midiTime, midiSense);
+        ThrowIfError();
     }
 
     /// <summary>

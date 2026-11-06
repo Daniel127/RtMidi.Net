@@ -7,6 +7,15 @@ public class MidiOutputClient : MidiClient
 {
     private readonly RtMidiOut _rtMidiOutClient;
 
+    /// <summary>
+    /// Creates a client that is not bound to a device, to be used with
+    /// <see cref="MidiClient.OpenVirtual"/>.
+    /// </summary>
+    public MidiOutputClient() : base(new RtMidiOut())
+    {
+        _rtMidiOutClient = (RtMidiOut)RtMidiClient;
+    }
+
     public MidiOutputClient(MidiDeviceInfo deviceInfo) : base(deviceInfo, new RtMidiOut())
     {
         _rtMidiOutClient = (RtMidiOut)RtMidiClient;

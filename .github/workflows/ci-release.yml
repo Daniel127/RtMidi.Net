@@ -1,15 +1,293 @@
 name: Build
 
-on: [push]
+# Branches are built through their pull request; pushes build only main/develop
+# (for the badges) and release tags (for publishing). This avoids two runs per
+# commit on a PR branch.
+on:
+  push:
+    branches: [main, develop]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+# A newer commit on the same PR/branch cancels the run that is still going.
+# Tag runs (publishing) are never cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
-  build:
+  # ---------------------------------------------------------------------------
+  # Native RtMidi builds (from the external/rtmidi submodule)
+  # Output layout: artifacts/native/<rid>/native/<library>
+  # ---------------------------------------------------------------------------
+  native-linux:
+    name: RtMidi ${{ matrix.rid }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: linux-x64
+            runner: ubuntu-latest
+            platform: linux/amd64
+          - rid: linux-arm64
+            runner: ubuntu-24.04-arm
+            platform: linux/arm64
+          - rid: linux-arm
+            runner: ubuntu-latest
+            platform: linux/arm/v7
+            qemu: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Set up QEMU
+        if: matrix.qemu
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      # Ubuntu 20.04 (glibc 2.31, still served by the Ubuntu archive) keeps the library loadable on older distros
+      # such as Raspberry Pi OS 11.
+      - name: Build librtmidi.so
+        run: |
+          docker run --rm --platform ${{ matrix.platform }} \
+            -v "$PWD:/src" -w /src ubuntu:20.04 \
+            bash .github/scripts/build-rtmidi-linux.sh artifacts/native/${{ matrix.rid }}/native
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.rid }}
+          path: artifacts/native
+          if-no-files-found: error
+
+  native-windows:
+    name: RtMidi ${{ matrix.rid }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            arch: x64
+          - rid: win-x86
+            arch: Win32
+          - rid: win-arm64
+            arch: ARM64
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      # Static MSVC runtime so users don't need the VC++ redistributable.
+      - name: Build rtmidi.dll
+        run: |
+          cmake -S external/rtmidi -B build -A ${{ matrix.arch }} \
+            -DRTMIDI_BUILD_TESTING=OFF -DRTMIDI_API_JACK=OFF \
+            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+          cmake --build build --config Release
+          mkdir -p artifacts/native/${{ matrix.rid }}/native
+          cp build/Release/rtmidi.dll artifacts/native/${{ matrix.rid }}/native/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.rid }}
+          path: artifacts/native
+          if-no-files-found: error
+
+  native-macos:
+    name: RtMidi osx (universal)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Build librtmidi.dylib (arm64 + x86_64)
+        run: |
+          cmake -S external/rtmidi -B build -DCMAKE_BUILD_TYPE=Release \
+            -DRTMIDI_BUILD_TESTING=OFF -DRTMIDI_API_JACK=OFF \
+            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15
+          cmake --build build --config Release
+          mkdir -p artifacts/native/osx/native
+          cp -L build/librtmidi.dylib artifacts/native/osx/native/librtmidi.dylib
+          lipo -info artifacts/native/osx/native/librtmidi.dylib
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-osx
+          path: artifacts/native
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Managed build + NuGet package with every native library inside
+  # ---------------------------------------------------------------------------
+  package:
+    needs: [native-linux, native-windows, native-macos]
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
-    - name: Setup .NET Core
-      uses: actions/setup-dotnet@v1
-      with:
-        dotnet-version: 7.0.x
-    - name: Build with dotnet
-      run: dotnet build --configuration Release
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: native-*
+          path: artifacts/native
+          merge-multiple: true
+      - name: List native libraries
+        run: find artifacts/native -type f | sort
+      - name: Package version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "args=-p:Version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "args=" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build
+        run: dotnet build RtMidi.Net/RtMidi.Net.csproj --configuration Release ${{ steps.version.outputs.args }}
+      - name: Pack
+        run: dotnet pack RtMidi.Net/RtMidi.Net.csproj --configuration Release --no-build --output artifacts/nuget ${{ steps.version.outputs.args }}
+      - name: Verify native libraries in package
+        run: |
+          pkg=$(ls artifacts/nuget/*.nupkg | head -1)
+          unzip -l "$pkg"
+          for f in \
+            runtimes/linux-x64/native/librtmidi.so \
+            runtimes/linux-arm64/native/librtmidi.so \
+            runtimes/linux-arm/native/librtmidi.so \
+            runtimes/win-x64/native/rtmidi.dll \
+            runtimes/win-x86/native/rtmidi.dll \
+            runtimes/win-arm64/native/rtmidi.dll \
+            runtimes/osx/native/librtmidi.dylib; do
+            unzip -l "$pkg" | grep -q " $f$" || { echo "::error::Missing $f in $pkg"; exit 1; }
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nuget-package
+          path: artifacts/nuget/*.nupkg
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Use the package on every platform: install it into a small app
+  # (tests/RtMidi.Net.PackageTest), load RtMidi and, where virtual ports exist
+  # (ALSA, CoreMIDI), open a port, receive Note On/Off events and close.
+  # Windows MultiMedia has no virtual ports, so Windows lists the ports only.
+  # ---------------------------------------------------------------------------
+  package-test:
+    name: Test ${{ matrix.rid }}
+    needs: package
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: linux-x64
+            runner: ubuntu-latest
+            mode: alsa
+          - rid: linux-arm64
+            runner: ubuntu-24.04-arm
+            mode: alsa
+          - rid: linux-arm
+            runner: ubuntu-latest
+            mode: alsa-qemu
+          - rid: win-x64
+            runner: windows-latest
+            mode: windows
+          - rid: win-x86
+            runner: windows-latest
+            mode: windows
+          - rid: win-arm64
+            runner: windows-11-arm
+            mode: windows
+          - rid: osx-arm64
+            runner: macos-latest
+            mode: macos
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - uses: actions/download-artifact@v4
+        with:
+          name: nuget-package
+          path: artifacts/nuget
+      - name: Publish test app with the package
+        run: dotnet publish tests/RtMidi.Net.PackageTest -c Release -r ${{ matrix.rid }} --self-contained -o package-test
+
+      # ALSA needs the sequencer device (/dev/snd/seq). GitHub's Linux VMs ship
+      # without it loaded, so install the extra kernel modules and load snd-seq.
+      - name: Enable ALSA sequencer
+        if: startsWith(matrix.mode, 'alsa')
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q libasound2t64 || sudo apt-get install -y -q libasound2
+          sudo apt-get install -y -q "linux-modules-extra-$(uname -r)" || true
+          sudo modprobe snd-seq || true
+          if [[ -e /dev/snd/seq ]]; then
+            sudo chmod a+rw /dev/snd/seq
+            echo "TEST_ARGS=--loopback" >> "$GITHUB_ENV"
+          else
+            echo "::warning::/dev/snd/seq is not available on this runner; running the load test only"
+            echo "TEST_ARGS=" >> "$GITHUB_ENV"
+          fi
+
+      - name: Run (Linux)
+        if: matrix.mode == 'alsa'
+        run: ./package-test/RtMidi.Net.PackageTest $TEST_ARGS
+
+      - name: Set up QEMU
+        if: matrix.mode == 'alsa-qemu'
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      - name: Run (Linux ARM32 under QEMU)
+        if: matrix.mode == 'alsa-qemu'
+        run: |
+          device_args=""
+          if [[ -e /dev/snd/seq ]]; then device_args="--device /dev/snd/seq"; fi
+          docker run --rm --platform linux/arm/v7 $device_args \
+            -v "$PWD/package-test:/app" -w /app ubuntu:20.04 \
+            bash -c "apt-get update -q && DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends libasound2 && ./RtMidi.Net.PackageTest $TEST_ARGS"
+
+      - name: Run (Windows)
+        if: matrix.mode == 'windows'
+        run: ./package-test/RtMidi.Net.PackageTest.exe --devices
+
+      - name: Run (macOS)
+        if: matrix.mode == 'macos'
+        run: ./package-test/RtMidi.Net.PackageTest --loopback
+
+  # ---------------------------------------------------------------------------
+  # Publish to nuget.org when a vX.Y.Z tag is pushed, using nuget.org Trusted
+  # Publishing (GitHub OIDC -> short-lived API key, no long-lived secret).
+  # Requires a Trusted Publishing policy on nuget.org for this repository and
+  # workflow file (ci-release.yml), and the NUGET_USER secret with the
+  # nuget.org profile name (not the email).
+  # ---------------------------------------------------------------------------
+  publish:
+    needs: [package, package-test]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # GitHub OIDC token for NuGet/login
+      contents: read
+    steps:
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - uses: actions/download-artifact@v4
+        with:
+          name: nuget-package
+          path: nuget
+      # Requested right before pushing: the temporary key is valid for 1 hour.
+      - name: NuGet login (OIDC -> temporary API key)
+        id: login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          user: ${{ secrets.NUGET_USER }}
+      - name: Push to nuget.org
+        run: dotnet nuget push nuget/*.nupkg --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
