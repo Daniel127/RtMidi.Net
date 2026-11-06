@@ -16,7 +16,7 @@ fi
 
 mkdir -p "$out_dir"
 g++ -shared -fPIC -O2 -std=c++11 \
-  -D__LINUX_ALSA__ -DRTMIDI_EXPORT \
+  -DRTMIDI_API_ALSA -DRTMIDI_EXPORT \
   -static-libstdc++ -static-libgcc \
   "$src_dir/RtMidi.cpp" "$src_dir/rtmidi_c.cpp" \
   -lasound -lpthread \

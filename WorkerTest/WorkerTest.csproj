@@ -17,12 +17,11 @@
     <ProjectReference Include="..\RtMidi.Net\RtMidi.Net.csproj" />
   </ItemGroup>
 
+  <!--
+    The native RtMidi library for $(RuntimeIdentifier), built as described in CONTRIBUTING.md
+    (artifacts/native/<rid>/native), or downloaded from the CI "native-<rid>" artifact.
+  -->
   <ItemGroup>
-    <None Update="librtmidi.so"> <!-- Linux ARM64 (Tested on Raspberry Pi)-->
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="rtmidi.dll">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
+    <None Include="..\artifacts\native\$(RuntimeIdentifier)\native\*" CopyToOutputDirectory="PreserveNewest" Visible="false" />
   </ItemGroup>
 </Project>

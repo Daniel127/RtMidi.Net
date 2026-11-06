@@ -32,10 +32,15 @@ internal delegate void RtMidiNativeCallback(double timestamp, IntPtr message, nu
 internal sealed class RtMidiIn : RtMidiBase
 {
     /// <summary>
-    /// Size of the buffer used by <see cref="GetMessage()"/>. RtMidi drops a queued
-    /// message that does not fit, so it is large enough for long SysEx dumps.
+    /// Initial size of the buffer used by <see cref="GetMessage()"/>. It grows when a
+    /// longer message (a SysEx dump) is queued.
     /// </summary>
-    internal const int MessageBufferSize = 64 * 1024;
+    internal const int InitialMessageBufferSize = 1024;
+
+    /// <summary>
+    /// Queue size limit RtMidi uses when none is given.
+    /// </summary>
+    internal const uint DefaultQueueSizeLimit = 100;
 
     // One static delegate for every instance (the instance travels in userData), kept
     // alive by this field for the lifetime of the process.
@@ -45,15 +50,21 @@ internal sealed class RtMidiIn : RtMidiBase
     // RtMidi gets a token as userData instead of a GCHandle:
     // - the registry holds weak references, so a registered callback does not keep an
     //   undisposed instance (and its client and event subscribers) alive;
-    // - RtMidi 6.0 does not wait for a running callback when it is cancelled, so a late
-    //   callback may still arrive with an old userData. Tokens are never reused and an
-    //   unknown token is ignored, unlike a freed GCHandle, which could crash or reach
-    //   another object.
+    // - a callback that is already running when the instance is released may still arrive
+    //   with an old userData. Tokens are never reused and an unknown token is ignored,
+    //   unlike a freed GCHandle, which could crash or reach another object.
     private static readonly ConcurrentDictionary<nint, WeakReference<RtMidiIn>> CallbackRegistry = new();
     private static long _lastCallbackToken;
 
-    private RtMidiMessageHandler? _handler;
+    // The native callback is set once and never cancelled while the port is in use:
+    // rtmidi_in_cancel_callback (RtMidi 6.1) frees the data its input thread reads to
+    // call us, so cancelling while a message arrives could crash. Instead,
+    // CancelCallback only removes the handler, and messages that arrive without one go
+    // to _pendingMessages, which GetMessage reads after the native queue.
+    private volatile RtMidiMessageHandler? _handler;
     private nint _callbackToken;
+    private readonly uint _queueSizeLimit;
+    private readonly ConcurrentQueue<(byte[] Message, double Timestamp)> _pendingMessages = new();
     private readonly object _messageBufferLock = new();
     private byte[]? _messageBuffer;
 
@@ -62,6 +73,7 @@ internal sealed class RtMidiIn : RtMidiBase
     /// </summary>
     public RtMidiIn() : base(EnsureCreated(RtMidiInterop.rtmidi_in_create_default(), RtMidiInterop.rtmidi_in_free))
     {
+        _queueSizeLimit = DefaultQueueSizeLimit;
     }
 
     /// <summary>
@@ -75,9 +87,10 @@ internal sealed class RtMidiIn : RtMidiBase
     /// </summary>
     /// <remarks>An exception will be thrown if a MIDI system initialization
     /// error occurs.</remarks>
-    public RtMidiIn(MidiApi api, string clientName, uint queueSizeLimit = 100)
+    public RtMidiIn(MidiApi api, string clientName, uint queueSizeLimit = DefaultQueueSizeLimit)
         : base(EnsureCreated(RtMidiInterop.rtmidi_in_create((int)api, clientName, queueSizeLimit), RtMidiInterop.rtmidi_in_free))
     {
+        _queueSizeLimit = queueSizeLimit;
     }
 
     /// <inheritdoc />
@@ -101,13 +114,30 @@ internal sealed class RtMidiIn : RtMidiBase
     {
         ArgumentNullException.ThrowIfNull(handler);
         _handler = handler;
-        if (_callbackToken == 0)
+        if (_callbackToken != 0) return;
+
+        // While a callback is set RtMidi stops queueing and warns on every read, so take
+        // what is already queued first; GetMessage returns it before newer messages.
+        lock (_messageBufferLock)
         {
-            _callbackToken = RegisterCallbackTarget(this);
+            while (true)
+            {
+                var (message, timestamp) = ReadNativeMessage(ReadQueuedMessage);
+                if (message.IsEmpty) break;
+                _pendingMessages.Enqueue((message.ToArray(), timestamp));
+            }
         }
 
-        RtMidiInterop.rtmidi_in_set_callback(RtMidiPtr, NativeCallbackPointer, _callbackToken);
-        ThrowIfError();
+        var token = RegisterCallbackTarget(this);
+        RtMidiInterop.rtmidi_in_set_callback(RtMidiPtr, NativeCallbackPointer, token);
+        if (!LastCallSucceeded)
+        {
+            CallbackRegistry.TryRemove(token, out _);
+            _handler = null;
+            ThrowIfError();
+        }
+
+        _callbackToken = token;
     }
 
     /// <summary>
@@ -119,11 +149,7 @@ internal sealed class RtMidiIn : RtMidiBase
     /// </summary>
     public void CancelCallback()
     {
-        RtMidiInterop.rtmidi_in_cancel_callback(RtMidiPtr);
-        // The token stays registered until the instance is released: a callback that
-        // was already running finds no handler and does nothing.
         _handler = null;
-        ThrowIfError();
     }
 
     /// <summary>
@@ -138,8 +164,8 @@ internal sealed class RtMidiIn : RtMidiBase
     /// </remarks>
     public void IgnoreTypes(bool midiSysex = true, bool midiTime = true, bool midiSense = true)
     {
+        // Cannot fail, and unlike the other functions it does not reset the error status.
         RtMidiInterop.rtmidi_in_ignore_types(RtMidiPtr, midiSysex, midiTime, midiSense);
-        ThrowIfError();
     }
 
     /// <summary>
@@ -152,9 +178,10 @@ internal sealed class RtMidiIn : RtMidiBase
     public (byte[] message, double timestamp) GetMessage() => GetMessage(ReadQueuedMessage);
 
     /// <summary>
-    /// Reads the next queued message like <c>rtmidi_in_get_message</c>: copies it into
-    /// <paramref name="buffer"/> only when it fits, and always sets <paramref name="size"/>
-    /// to its length (0 if the queue is empty).
+    /// Reads the next queued message like <c>rtmidi_in_get_message</c> (RtMidi 6.1):
+    /// copies it into <paramref name="buffer"/> and sets <paramref name="size"/> to its
+    /// length (0 if the queue is empty). A message that does not fit stays queued, the
+    /// call fails and <paramref name="size"/> is set to its length.
     /// </summary>
     internal delegate double QueuedMessageReader(byte[] buffer, ref nuint size);
 
@@ -163,24 +190,38 @@ internal sealed class RtMidiIn : RtMidiBase
     /// </summary>
     internal (byte[] message, double timestamp) GetMessage(QueuedMessageReader reader)
     {
+        // Once the native callback is set, every message arrives through it.
+        if (_callbackToken != 0)
+        {
+            return _pendingMessages.TryDequeue(out var pending) ? (pending.Message, pending.Timestamp) : ([], 0);
+        }
+
         lock (_messageBufferLock)
         {
-            _messageBuffer ??= new byte[MessageBufferSize];
-            var size = (nuint)_messageBuffer.Length;
-            var timestamp = reader(_messageBuffer, ref size);
-
-            ThrowIfError();
-
-            if (size == 0) return ([], timestamp);
-            if (size > (nuint)_messageBuffer.Length)
-            {
-                // RtMidi already removed it from the queue without copying it.
-                Trace.TraceWarning($"RtMidi.Net: dropped a {size} byte MIDI message larger than the {MessageBufferSize} byte buffer.");
-                return ([], timestamp);
-            }
-
-            return (_messageBuffer.AsSpan(0, (int)size).ToArray(), timestamp);
+            var (message, timestamp) = ReadNativeMessage(reader);
+            return (message.ToArray(), timestamp);
         }
+    }
+
+    /// <summary>
+    /// Reads the next message of RtMidi's queue into the shared buffer (caller holds the lock).
+    /// </summary>
+    private (ReadOnlyMemory<byte> Message, double Timestamp) ReadNativeMessage(QueuedMessageReader reader)
+    {
+        _messageBuffer ??= new byte[InitialMessageBufferSize];
+        var size = (nuint)_messageBuffer.Length;
+        var timestamp = reader(_messageBuffer, ref size);
+
+        if (size > (nuint)_messageBuffer.Length)
+        {
+            // Too long for the buffer: RtMidi keeps it queued, so read it again with room for it.
+            _messageBuffer = new byte[checked((int)size)];
+            size = (nuint)_messageBuffer.Length;
+            timestamp = reader(_messageBuffer, ref size);
+        }
+
+        ThrowIfError();
+        return size == 0 ? (ReadOnlyMemory<byte>.Empty, timestamp) : (_messageBuffer.AsMemory(0, (int)size), timestamp);
     }
 
     private double ReadQueuedMessage(byte[] buffer, ref nuint size) =>
@@ -196,15 +237,35 @@ internal sealed class RtMidiIn : RtMidiBase
         {
             if (userData == IntPtr.Zero || message == IntPtr.Zero) return;
             if (!CallbackRegistry.TryGetValue(userData, out var reference)) return;
-            if (!reference.TryGetTarget(out var instance) || instance._handler is not { } handler) return;
+            if (!reference.TryGetTarget(out var instance)) return;
             var data = new byte[checked((int)size)];
             Marshal.Copy(message, data, 0, data.Length);
-            handler(timestamp, data);
+            instance.Deliver(timestamp, data);
         }
         catch (Exception ex)
         {
             Trace.TraceError($"RtMidi.Net: unhandled exception in the MIDI message handler: {ex}");
         }
+    }
+
+    private void Deliver(double timestamp, byte[] data)
+    {
+        if (_handler is { } handler)
+        {
+            handler(timestamp, data);
+            return;
+        }
+
+        if (_callbackToken == 0) return; // released
+
+        // Same rule as RtMidi's own queue: when it is full, new messages are dropped.
+        if (_pendingMessages.Count >= _queueSizeLimit)
+        {
+            Trace.TraceWarning("RtMidi.Net: MIDI message queue limit reached, message dropped.");
+            return;
+        }
+
+        _pendingMessages.Enqueue((data, timestamp));
     }
 
     /// <summary>
@@ -229,9 +290,13 @@ internal sealed class RtMidiIn : RtMidiBase
     /// <inheritdoc />
     protected override void ReleaseUnmanagedResources()
     {
-        // Freeing the native object stops its callback thread, so the token can go after it.
-        RtMidiInterop.rtmidi_in_free(RtMidiPtr);
+        // rtmidi_in_free frees the callback's data before it stops the input thread, so
+        // stop the input first: closing the port ends delivery (ALSA joins its thread,
+        // CoreMIDI disposes the port and the virtual endpoint).
         _handler = null;
+        if (_callbackToken != 0) RtMidiInterop.rtmidi_close_port(RtMidiPtr);
+        RtMidiInterop.rtmidi_in_free(RtMidiPtr);
         UnregisterCallback();
+        _pendingMessages.Clear();
     }
 }
