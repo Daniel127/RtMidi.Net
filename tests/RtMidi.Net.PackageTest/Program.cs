@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using RtMidi.Net;
 using RtMidi.Net.Clients;
@@ -20,49 +19,58 @@ Console.WriteLine($"Runtime:  {RuntimeInformation.RuntimeIdentifier} ({RuntimeIn
 
 try
 {
+    return await Run(args);
+}
+catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
+{
+    return Ports.Fail($"native library could not be loaded: {ex}");
+}
+catch (RtMidiException ex)
+{
+    return Ports.Fail($"RtMidi error: {ex.Message}");
+}
+
+static async Task<int> Run(string[] args)
+{
     var version = MidiManager.GetRtMidiVersion();
     Console.WriteLine($"RtMidi:   {version}");
     if (string.IsNullOrWhiteSpace(version))
-        return Fail("empty RtMidi version");
+        return Ports.Fail("empty RtMidi version");
 
     var apis = MidiManager.GetAvailableApis();
     Console.WriteLine($"APIs:     {string.Join(", ", apis.Select(MidiManager.GetApiDisplayName))}");
     if (apis.Count == 0)
-        return Fail("no MIDI API compiled into the native library");
+        return Ports.Fail("no MIDI API compiled into the native library");
 
-    if (args.Contains("--devices") || args.Contains("--loopback") || args.Contains("--stress"))
-    {
-        var devices = MidiManager.GetAvailableDevices();
-        Console.WriteLine($"Devices:  {devices.Count}");
-        foreach (var device in devices)
-            Console.WriteLine($"  [{device.Type}] {device.Port}: {device.Name} ({device.Api})");
-    }
+    var stressDuration = StressDuration(args);
+    if (args.Contains("--devices") || args.Contains("--loopback") || stressDuration is not null)
+        PrintDevices();
 
-    if (args.Contains("--loopback"))
-    {
-        var result = await RunLoopback();
-        if (result != 0) return result;
-    }
+    var result = args.Contains("--loopback") ? await RunLoopback() : 0;
+    if (result == 0 && stressDuration is { } duration)
+        result = await StressTest.Run(duration);
+    if (result != 0) return result;
 
-    var stressIndex = Array.IndexOf(args, "--stress");
-    if (stressIndex >= 0)
-    {
-        var seconds = stressIndex + 1 < args.Length && int.TryParse(args[stressIndex + 1], out var parsed) ? parsed : 10;
-        var result = await RunStress(TimeSpan.FromSeconds(seconds));
-        if (result != 0) return result;
-    }
+    Console.WriteLine("OK");
+    return 0;
 }
-catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
+
+// --stress [seconds]: null without the flag, 10 s when no time is given.
+static TimeSpan? StressDuration(string[] args)
 {
-    return Fail($"native library could not be loaded: {ex}");
-}
-catch (RtMidiException ex)
-{
-    return Fail($"RtMidi error: {ex.Message}");
+    var index = Array.IndexOf(args, "--stress");
+    if (index < 0) return null;
+    var seconds = index + 1 < args.Length && int.TryParse(args[index + 1], out var parsed) ? parsed : 10;
+    return TimeSpan.FromSeconds(seconds);
 }
 
-Console.WriteLine("OK");
-return 0;
+static void PrintDevices()
+{
+    var devices = MidiManager.GetAvailableDevices();
+    Console.WriteLine($"Devices:  {devices.Count}");
+    foreach (var device in devices)
+        Console.WriteLine($"  [{device.Type}] {device.Port}: {device.Name} ({device.Api})");
+}
 
 static async Task<int> RunLoopback()
 {
@@ -75,9 +83,9 @@ static async Task<int> RunLoopback()
     Console.WriteLine($"  opened virtual output port '{portName}'");
 
     // 2. Find it among the input ports (CoreMIDI may take a moment to publish it).
-    var source = await FindInputPort(portName);
+    var source = await Ports.FindInput(portName);
     if (source is null)
-        return Fail($"virtual port '{portName}' not found among input ports");
+        return Ports.Fail($"virtual port '{portName}' not found among input ports");
     Console.WriteLine($"  found it as input port {source.Port}: {source.Name}");
 
     // 3. Input client with the event enabled.
@@ -115,138 +123,15 @@ static async Task<int> RunLoopback()
     Console.WriteLine("  closed input and output");
 
     if (finished != gotBoth.Task)
-        return Fail($"timed out waiting for messages, received {received.Count} of 2");
+        return Ports.Fail($"timed out waiting for messages, received {received.Count} of 2");
 
     string? error;
     lock (received) error = CheckNoteOnOff(received, note);
     if (error is not null)
-        return Fail(error);
+        return Ports.Fail(error);
 
     Console.WriteLine("  loopback OK");
     return 0;
-}
-
-static async Task<int> RunStress(TimeSpan duration)
-{
-    const string portName = "RtMidi.Net Stress";
-    Console.WriteLine($"Stress ({duration.TotalSeconds:F0} s):");
-
-    using var output = new MidiOutputClient();
-    output.OpenVirtual(portName);
-    var source = await FindInputPort(portName);
-    if (source is null)
-        return Fail($"virtual port '{portName}' not found among input ports");
-    Console.WriteLine($"  sending through input port {source.Port}: {source.Name}");
-
-    long sent = 0, viaEvent = 0, viaPolling = 0, clients = 0, toggles = 0;
-    var errors = new System.Collections.Concurrent.ConcurrentQueue<string>();
-    using var stop = new CancellationTokenSource(duration);
-
-    // Sender: Note On/Off pairs in bursts, as fast as the backend takes them.
-    var sender = Task.Factory.StartNew(() =>
-    {
-        var noteOn = new MidiMessageNote(MidiChannel.Channel01, new MidiNote(60), 100, MidiMessageType.NoteOn);
-        var noteOff = new MidiMessageNote(MidiChannel.Channel01, new MidiNote(60), 0, MidiMessageType.NoteOff);
-        try
-        {
-            while (!stop.IsCancellationRequested)
-            {
-                for (var i = 0; i < 16; i++)
-                {
-                    output.SendMessage(noteOn);
-                    output.SendMessage(noteOff);
-                    sent += 2;
-                }
-                Thread.Sleep(1);
-            }
-        }
-        catch (Exception ex)
-        {
-            errors.Enqueue($"sender: {ex}");
-        }
-    }, TaskCreationOptions.LongRunning);
-
-    void Check(MidiMessage message)
-    {
-        if (message is not MidiMessageNote { Type: MidiMessageType.NoteOn or MidiMessageType.NoteOff } note
-            || note.Note.GetByteRepresentation() != 60)
-            errors.Enqueue($"unexpected message {message}");
-    }
-
-    // Receiver: clients that live for a few hundred toggles each and are disposed
-    // in every state (event on or off, port open or already closed).
-    var random = new Random(1234);
-    try
-    {
-        while (!stop.IsCancellationRequested && errors.IsEmpty)
-        {
-            var input = new MidiInputClient(source);
-            clients++;
-            input.OnMessageReceived += (_, e) =>
-            {
-                Interlocked.Increment(ref viaEvent);
-                Check(e.Message);
-                if (Random.Shared.Next(64) == 0) Thread.SpinWait(2000); // a slow handler now and then
-            };
-            if (random.Next(2) == 0) input.ActivateMessageReceivedEvent(); // before or after opening
-            input.Open();
-
-            var cycles = random.Next(50, 300);
-            for (var i = 0; i < cycles && !stop.IsCancellationRequested; i++)
-            {
-                input.ActivateMessageReceivedEvent();
-                if (random.Next(4) == 0) Thread.Sleep(1);
-                input.DeactivateMessageReceivedEvent();
-                toggles++;
-                while (input.TryGetMessage(out var message, out _))
-                {
-                    viaPolling++;
-                    Check(message);
-                }
-            }
-
-            switch (random.Next(3))
-            {
-                case 0: input.ActivateMessageReceivedEvent(); break; // dispose with the event on
-                case 1: input.Close(); break;                        // dispose after closing
-            }
-            input.Dispose();
-
-            if (clients % 20 == 0) GC.Collect();
-        }
-    }
-    catch (Exception ex)
-    {
-        errors.Enqueue($"receiver: {ex}");
-    }
-
-    await stop.CancelAsync();
-    await sender;
-    output.Close();
-
-    Console.WriteLine($"  sent {sent} messages; received {viaEvent} through the event and {viaPolling} by polling");
-    Console.WriteLine($"  {clients} input clients, {toggles} event on/off cycles");
-
-    if (!errors.IsEmpty)
-        return Fail(string.Join(Environment.NewLine, errors.Take(5)));
-    if (viaEvent == 0 || viaPolling == 0)
-        return Fail("expected messages through both the event and polling");
-
-    Console.WriteLine("  stress OK");
-    return 0;
-}
-
-static async Task<MidiDeviceInfo?> FindInputPort(string portName)
-{
-    var stopwatch = Stopwatch.StartNew();
-    while (stopwatch.Elapsed < TimeSpan.FromSeconds(5))
-    {
-        var port = MidiManager.GetAvailableDevices()
-            .FirstOrDefault(d => d.Type == MidiDeviceType.Input && d.Name.Contains(portName));
-        if (port is not null) return port;
-        await Task.Delay(100);
-    }
-    return null;
 }
 
 static string? CheckNoteOnOff(IReadOnlyList<MidiMessage> received, MidiNote note)
@@ -259,10 +144,4 @@ static string? CheckNoteOnOff(IReadOnlyList<MidiMessage> received, MidiNote note
         || off.Note.GetByteRepresentation() != expected)
         return $"second message should be Note Off {expected}, got {received[1]}";
     return null;
-}
-
-static int Fail(string message)
-{
-    Console.Error.WriteLine($"FAILED: {message}");
-    return 1;
 }
