@@ -103,11 +103,16 @@ public class DummyApiTests
     [NativeFact]
     public void Dispose_IsIdempotent()
     {
+        // Disposing twice is exactly what this test checks.
+#pragma warning disable S3966 // Objects should not be disposed more than once
         var rtMidiIn = new RtMidiIn();
-        for (var i = 0; i < 2; i++) rtMidiIn.Dispose();
+        rtMidiIn.Dispose();
+        rtMidiIn.Dispose();
 
         var client = new MidiOutputClient();
-        for (var i = 0; i < 2; i++) client.Dispose();
+        client.Dispose();
+        client.Dispose();
+#pragma warning restore S3966
     }
 
     [NativeFact]
