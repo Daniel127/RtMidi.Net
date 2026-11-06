@@ -71,4 +71,4 @@ The NuGet package includes the native RtMidi library for these platforms, so you
 
 On Linux, the library needs ALSA at runtime (`libasound2`), which is installed on most desktop distributions and on Raspberry Pi OS.
 
-If you want to build the library or the native binaries yourself, see [CONTRIBUTING.md](CONTRIBUTING.md).
+If you want to build the library or the native binaries yourself, see [CONTRIBUTING.md](https://github.com/Daniel127/RtMidi.Net/blob/main/CONTRIBUTING.md).

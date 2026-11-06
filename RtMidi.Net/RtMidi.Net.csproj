@@ -12,13 +12,22 @@
         <RepositoryUrl>https://github.com/Daniel127/RtMidi.Net</RepositoryUrl>
         <PackageProjectUrl>https://github.com/Daniel127/RtMidi.Net</PackageProjectUrl>
         <RepositoryType>git</RepositoryType>
-        <PackageTags>Real;Time;MIDI;RtMidi</PackageTags>
+        <PackageTags>MIDI;RtMidi;realtime;audio;music;ALSA;CoreMIDI;WinMM</PackageTags>
         <Authors>Daniel Quiñones</Authors>
-        <Description>Wrapper of RtMidi</Description>
-    </PropertyGroup>
+        <Description>.NET wrapper for RtMidi: realtime MIDI input and output on Windows, Linux (including Raspberry Pi) and macOS. Includes the native RtMidi libraries.</Description>
 
-    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+        <!-- XML docs (IntelliSense) for every target framework in the package -->
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+        <!-- Debugging: symbol package (.snupkg) with Source Link to the GitHub commit -->
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+
+        <!-- Checks the package (e.g. same public API in every target framework) when packing -->
+        <EnablePackageValidation>true</EnablePackageValidation>
     </PropertyGroup>
 
     <ItemGroup>
