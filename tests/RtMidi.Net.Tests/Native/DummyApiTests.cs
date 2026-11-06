@@ -247,6 +247,57 @@ public class DummyApiTests
         Assert.Throws<ArgumentException>(() => client.SendMessage(new MidiMessage(MidiMessageType.NoteOn)));
     }
 
+    [NativeFact]
+    public void GetMessage_CopiesQueuedMessages_AndSkipsOversizedOnes()
+    {
+        using var input = new RtMidiIn(MidiApi.RtMidiDummy, "Queue test");
+        var exactSize = new byte[RtMidiIn.MessageBufferSize];
+        exactSize[0] = 0xF0;
+        exactSize[^1] = 0xF7;
+        var queue = new FakeNativeQueue(
+            (0.25, [0x90, 60, 100]),
+            (0.5, exactSize),
+            (1.0, new byte[RtMidiIn.MessageBufferSize + 1]),
+            (2.0, [0xB0, 7, 64]));
+
+        AssertNextMessage(input, queue, [0x90, 60, 100], 0.25);
+        AssertNextMessage(input, queue, exactSize, 0.5);
+        // Too big for the buffer: RtMidi removes it from the queue without copying it.
+        AssertNextMessage(input, queue, [], 1.0);
+        // The next message is read normally, with nothing left from the previous ones.
+        AssertNextMessage(input, queue, [0xB0, 7, 64], 2.0);
+        // Empty queue.
+        AssertNextMessage(input, queue, [], 0.0);
+    }
+
+    private static void AssertNextMessage(RtMidiIn input, FakeNativeQueue queue, byte[] expectedMessage, double expectedTimestamp)
+    {
+        var (message, timestamp) = input.GetMessage(queue.Read);
+        Assert.Equal(expectedMessage, message);
+        Assert.Equal(expectedTimestamp, timestamp);
+    }
+
+    /// <summary>
+    /// Behaves like <c>rtmidi_in_get_message</c> in RtMidi 6.0.
+    /// </summary>
+    private sealed class FakeNativeQueue(params (double Timestamp, byte[] Message)[] messages)
+    {
+        private readonly Queue<(double Timestamp, byte[] Message)> _messages = new(messages);
+
+        public double Read(byte[] buffer, ref nuint size)
+        {
+            if (!_messages.TryDequeue(out var next))
+            {
+                size = 0;
+                return 0;
+            }
+
+            if (next.Message.Length <= (int)size) next.Message.CopyTo(buffer, 0);
+            size = (nuint)next.Message.Length;
+            return next.Timestamp;
+        }
+    }
+
     /// <summary>
     /// Calls the callback the way RtMidi does: with the message in native memory.
     /// </summary>

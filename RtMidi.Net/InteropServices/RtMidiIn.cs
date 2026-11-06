@@ -32,7 +32,7 @@ internal delegate void RtMidiNativeCallback(double timestamp, IntPtr message, nu
 internal sealed class RtMidiIn : RtMidiBase
 {
     /// <summary>
-    /// Size of the buffer used by <see cref="GetMessage"/>. RtMidi drops a queued
+    /// Size of the buffer used by <see cref="GetMessage()"/>. RtMidi drops a queued
     /// message that does not fit, so it is large enough for long SysEx dumps.
     /// </summary>
     internal const int MessageBufferSize = 64 * 1024;
@@ -115,7 +115,7 @@ internal sealed class RtMidiIn : RtMidiBase
     /// Cancel use of the current callback (if one exists).
     /// <para>
     /// Subsequent incoming MIDI messages will be written to the queue
-    /// and can be retrieved with the <see cref="GetMessage"/> function.
+    /// and can be retrieved with the <see cref="GetMessage()"/> function.
     /// </para>
     /// </summary>
     public void CancelCallback()
@@ -150,13 +150,25 @@ internal sealed class RtMidiIn : RtMidiBase
     /// This function returns immediately whether a new message is available or not.
     /// </remarks>
     /// <returns>The message (empty if the queue is empty) and its delta-time in seconds.</returns>
-    public (byte[] message, double timestamp) GetMessage()
+    public (byte[] message, double timestamp) GetMessage() => GetMessage(ReadQueuedMessage);
+
+    /// <summary>
+    /// Reads the next queued message like <c>rtmidi_in_get_message</c>: copies it into
+    /// <paramref name="buffer"/> only when it fits, and always sets <paramref name="size"/>
+    /// to its length (0 if the queue is empty).
+    /// </summary>
+    internal delegate double QueuedMessageReader(byte[] buffer, ref nuint size);
+
+    /// <summary>
+    /// <see cref="GetMessage()"/> with the native read replaced (for tests).
+    /// </summary>
+    internal (byte[] message, double timestamp) GetMessage(QueuedMessageReader reader)
     {
         lock (_messageBufferLock)
         {
             _messageBuffer ??= new byte[MessageBufferSize];
             var size = (nuint)_messageBuffer.Length;
-            var timestamp = RtMidiInterop.rtmidi_in_get_message(RtMidiPtr, _messageBuffer, ref size);
+            var timestamp = reader(_messageBuffer, ref size);
 
             ThrowIfError();
 
@@ -171,6 +183,9 @@ internal sealed class RtMidiIn : RtMidiBase
             return (_messageBuffer.AsSpan(0, (int)size).ToArray(), timestamp);
         }
     }
+
+    private double ReadQueuedMessage(byte[] buffer, ref nuint size) =>
+        RtMidiInterop.rtmidi_in_get_message(RtMidiPtr, buffer, ref size);
 
     /// <summary>
     /// Called by RtMidi on its thread for every message (internal for tests).
