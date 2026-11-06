@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using RtMidi.Net;
 using RtMidi.Net.Clients;
 using RtMidi.Net.Enums;
+using RtMidi.Net.PackageTest;
 
 // Package test for RtMidi.Net: a short "real use" session on the current platform.
 //

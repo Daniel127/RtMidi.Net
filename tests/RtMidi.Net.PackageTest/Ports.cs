@@ -2,6 +2,8 @@ using System.Diagnostics;
 using RtMidi.Net;
 using RtMidi.Net.Enums;
 
+namespace RtMidi.Net.PackageTest;
+
 /// <summary>
 /// Helpers shared by the loopback and the stress test.
 /// </summary>

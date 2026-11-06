@@ -4,6 +4,8 @@ using RtMidi.Net.Clients;
 using RtMidi.Net.Enums;
 using RtMidi.Net.Events;
 
+namespace RtMidi.Net.PackageTest;
+
 /// <summary>
 /// Sends Note On/Off in a loop through a virtual port while input clients connected
 /// to it turn the event on and off, poll, close and are disposed in every state.
