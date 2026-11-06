@@ -213,7 +213,9 @@ jobs:
   # ---------------------------------------------------------------------------
   # Use the package on every platform: install it into a small app
   # (tests/RtMidi.Net.PackageTest), load RtMidi and, where virtual ports exist
-  # (ALSA, CoreMIDI), open a port, receive Note On/Off events and close.
+  # (ALSA, CoreMIDI), open a port, receive Note On/Off events and close, then
+  # stress the input callback: messages sent in a loop while clients turn the
+  # event on and off, poll and are disposed.
   # Windows MultiMedia has no virtual ports, so Windows lists the ports only.
   # The app is built for .NET 8 and .NET 10, so both library builds are used.
   # ---------------------------------------------------------------------------
@@ -277,7 +279,7 @@ jobs:
           sudo modprobe snd-seq || true
           if [[ -e /dev/snd/seq ]]; then
             sudo chmod a+rw /dev/snd/seq
-            echo "TEST_ARGS=--loopback" >> "$GITHUB_ENV"
+            echo "TEST_ARGS=--loopback --stress 20" >> "$GITHUB_ENV"
           else
             echo "::warning::/dev/snd/seq is not available on this runner; running the load test only"
             echo "TEST_ARGS=" >> "$GITHUB_ENV"
@@ -325,7 +327,7 @@ jobs:
         run: |
           for tfm in $TEST_FRAMEWORKS; do
             echo "::group::$tfm"
-            ./package-test/$tfm/RtMidi.Net.PackageTest --loopback
+            ./package-test/$tfm/RtMidi.Net.PackageTest --loopback --stress 20
             echo "::endgroup::"
           done
 
