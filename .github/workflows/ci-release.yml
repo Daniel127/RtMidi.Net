@@ -131,7 +131,7 @@ jobs:
       # SonarCloud analysis with coverage runs only when the token is available
       # (not on pull requests from forks). Automatic Analysis must be off in
       # SonarCloud, or the scanner refuses to run.
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      HAS_SONAR_TOKEN: ${{ secrets.SONAR_TOKEN != '' }}
       SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION || 'daniel127' }}
       SONAR_PROJECT_KEY: Daniel127_RtMidi.Net
     steps:
@@ -148,18 +148,21 @@ jobs:
         run: .github/scripts/build-rtmidi-dummy.sh artifacts/test-native
 
       - uses: actions/setup-java@v4
-        if: env.SONAR_TOKEN != ''
+        if: env.HAS_SONAR_TOKEN == 'true'
         with:
           distribution: temurin
           java-version: 17
+      # The scanner reads the token from the SONAR_TOKEN environment variable, so it
+      # is only given to these two steps and never appears on a command line.
       - name: Start SonarCloud analysis
-        if: env.SONAR_TOKEN != ''
+        if: env.HAS_SONAR_TOKEN == 'true'
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          dotnet tool install --global dotnet-sonarscanner
+          dotnet tool install --global dotnet-sonarscanner --version 12.1.0
           dotnet sonarscanner begin \
             /k:"$SONAR_PROJECT_KEY" /o:"$SONAR_ORGANIZATION" \
             /d:sonar.host.url=https://sonarcloud.io \
-            /d:sonar.token="$SONAR_TOKEN" \
             /d:sonar.exclusions="external/**/*" \
             /d:sonar.cs.vscoveragexml.reportsPaths="tests/RtMidi.Net.Tests/bin/Release/*/TestResults/coverage.xml" \
             /d:sonar.cs.vstest.reportsPaths="tests/RtMidi.Net.Tests/bin/Release/*/TestResults/*.trx"
@@ -172,8 +175,10 @@ jobs:
           --coverage --coverage-output-format xml --coverage-output coverage.xml
 
       - name: Finish SonarCloud analysis
-        if: env.SONAR_TOKEN != '' && !cancelled()
-        run: dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"
+        if: env.HAS_SONAR_TOKEN == 'true' && !cancelled()
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: dotnet sonarscanner end
 
       - uses: actions/upload-artifact@v4
         if: always()
