@@ -11,7 +11,7 @@ namespace RtMidi.Net.InteropServices;
 /// OS-X, Linux ALSA and JACK MIDI APIs, it is also possible to open a
 /// virtual port to which other MIDI software clients can connect.
 /// </summary>
-internal class RtMidiOut : RtMidiBase
+internal sealed class RtMidiOut : RtMidiBase
 {
     /// <summary>
     /// Default constructor
@@ -21,26 +21,25 @@ internal class RtMidiOut : RtMidiBase
     }
 
     /// <summary>
-    /// Default constructor that allows an optional client name.
+    /// Constructor that allows an optional api and client name.
+    /// </summary>
     /// <remarks>
     /// An exception will be thrown if a MIDI system initialization error occurs.
-    /// 
-    /// If no API argument is specified and multiple API support has been
-    /// compiled, the default order of use is ALSA, JACK (Linux) and CORE,
-    /// JACK (OS-X).
     /// </remarks>
-    /// </summary>
     /// <param name="api">The api</param>
     /// <param name="clientName">The client name</param>
     public RtMidiOut(MidiApi api, string clientName)
-        : base(EnsureCreated(RtMidiInterop.rtmidi_out_create(api, clientName), RtMidiInterop.rtmidi_out_free))
+        : base(EnsureCreated(RtMidiInterop.rtmidi_out_create((int)api, clientName), RtMidiInterop.rtmidi_out_free))
     {
     }
 
     /// <inheritdoc />
+    protected override string DefaultPortName => "RtMidi Output";
+
+    /// <inheritdoc />
     public override MidiApi GetCurrentApi()
     {
-        return RtMidiInterop.rtmidi_out_get_current_api(RtMidiPtr);
+        return (MidiApi)RtMidiInterop.rtmidi_out_get_current_api(RtMidiPtr);
     }
 
     /// <summary>
@@ -51,6 +50,8 @@ internal class RtMidiOut : RtMidiBase
     /// <param name="message">Message to send</param>
     public void SendMessage(byte[] message)
     {
+        if (message.Length == 0) throw new ArgumentException("The message is empty.", nameof(message));
+
         RtMidiInterop.rtmidi_out_send_message(RtMidiPtr, message, message.Length);
         ThrowIfError();
     }

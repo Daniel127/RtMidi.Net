@@ -6,6 +6,9 @@ namespace RtMidi.Net;
 /// </summary>
 public class RtMidiException : Exception
 {
+    /// <summary>
+    /// Creates the exception with the error text.
+    /// </summary>
     public RtMidiException(string message) : base(message)
     {
     }

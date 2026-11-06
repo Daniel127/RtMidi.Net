@@ -121,16 +121,48 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
+  # Unit tests (tests/RtMidi.Net.Tests) on .NET 8 and .NET 10. They need no MIDI
+  # device; the interop tests run against RtMidi built with its dummy API.
+  # ---------------------------------------------------------------------------
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Build RtMidi (dummy API) for the interop tests
+        run: .github/scripts/build-rtmidi-dummy.sh artifacts/test-native
+      - name: Test
+        run: >
+          dotnet test --project tests/RtMidi.Net.Tests --configuration Release
+          -p:RtMidiTestLibrary=$PWD/artifacts/test-native/librtmidi.so
+          --report-xunit-trx
+          --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: |
+            tests/RtMidi.Net.Tests/bin/Release/*/TestResults/
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
   # Managed build + NuGet package with every native library inside
   # ---------------------------------------------------------------------------
   package:
-    needs: [native-linux, native-windows, native-macos]
+    needs: [native-linux, native-windows, native-macos, test]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.x
       - uses: actions/download-artifact@v4
         with:
           pattern: native-*
@@ -150,7 +182,7 @@ jobs:
         run: dotnet build RtMidi.Net/RtMidi.Net.csproj --configuration Release ${{ steps.version.outputs.args }}
       - name: Pack
         run: dotnet pack RtMidi.Net/RtMidi.Net.csproj --configuration Release --no-build --output artifacts/nuget ${{ steps.version.outputs.args }}
-      - name: Verify native libraries in package
+      - name: Verify package contents
         run: |
           pkg=$(ls artifacts/nuget/*.nupkg | head -1)
           unzip -l "$pkg"
@@ -161,13 +193,21 @@ jobs:
             runtimes/win-x64/native/rtmidi.dll \
             runtimes/win-x86/native/rtmidi.dll \
             runtimes/win-arm64/native/rtmidi.dll \
-            runtimes/osx/native/librtmidi.dylib; do
+            runtimes/osx/native/librtmidi.dylib \
+            lib/net8.0/RtMidi.Net.dll \
+            lib/net8.0/RtMidi.Net.xml \
+            lib/net10.0/RtMidi.Net.dll \
+            lib/net10.0/RtMidi.Net.xml \
+            README.md \
+            icon.png; do
             unzip -l "$pkg" | grep -q " $f$" || { echo "::error::Missing $f in $pkg"; exit 1; }
           done
       - uses: actions/upload-artifact@v4
         with:
           name: nuget-package
-          path: artifacts/nuget/*.nupkg
+          path: |
+            artifacts/nuget/*.nupkg
+            artifacts/nuget/*.snupkg
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
@@ -175,6 +215,7 @@ jobs:
   # (tests/RtMidi.Net.PackageTest), load RtMidi and, where virtual ports exist
   # (ALSA, CoreMIDI), open a port, receive Note On/Off events and close.
   # Windows MultiMedia has no virtual ports, so Windows lists the ports only.
+  # The app is built for .NET 8 and .NET 10, so both library builds are used.
   # ---------------------------------------------------------------------------
   package-test:
     name: Test ${{ matrix.rid }}
@@ -208,17 +249,22 @@ jobs:
     defaults:
       run:
         shell: bash
+    env:
+      TEST_FRAMEWORKS: net8.0 net10.0
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.x
       - uses: actions/download-artifact@v4
         with:
           name: nuget-package
           path: artifacts/nuget
       - name: Publish test app with the package
-        run: dotnet publish tests/RtMidi.Net.PackageTest -c Release -r ${{ matrix.rid }} --self-contained -o package-test
+        run: |
+          for tfm in $TEST_FRAMEWORKS; do
+            dotnet publish tests/RtMidi.Net.PackageTest -c Release -f $tfm -r ${{ matrix.rid }} --self-contained -o package-test/$tfm
+          done
 
       # ALSA needs the sequencer device (/dev/snd/seq). GitHub's Linux VMs ship
       # without it loaded, so install the extra kernel modules and load snd-seq.
@@ -239,27 +285,49 @@ jobs:
 
       - name: Run (Linux)
         if: matrix.mode == 'alsa'
-        run: ./package-test/RtMidi.Net.PackageTest $TEST_ARGS
+        run: |
+          for tfm in $TEST_FRAMEWORKS; do
+            echo "::group::$tfm"
+            ./package-test/$tfm/RtMidi.Net.PackageTest $TEST_ARGS
+            echo "::endgroup::"
+          done
 
       - name: Set up QEMU
         if: matrix.mode == 'alsa-qemu'
         uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      # .NET 8 runs on Ubuntu 20.04 (the oldest glibc the native library supports);
+      # .NET 10 needs a newer distro, so it runs on Ubuntu 24.04.
       - name: Run (Linux ARM32 under QEMU)
         if: matrix.mode == 'alsa-qemu'
         run: |
           device_args=""
           if [[ -e /dev/snd/seq ]]; then device_args="--device /dev/snd/seq"; fi
-          docker run --rm --platform linux/arm/v7 $device_args \
-            -v "$PWD/package-test:/app" -w /app ubuntu:20.04 \
-            bash -c "apt-get update -q && DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends libasound2 && ./RtMidi.Net.PackageTest $TEST_ARGS"
+          for tfm in $TEST_FRAMEWORKS; do
+            if [[ "$tfm" == net8.0 ]]; then image=ubuntu:20.04; alsa=libasound2; else image=ubuntu:24.04; alsa=libasound2t64; fi
+            echo "::group::$tfm ($image)"
+            docker run --rm --platform linux/arm/v7 $device_args \
+              -v "$PWD/package-test/$tfm:/app" -w /app $image \
+              bash -c "apt-get update -q && DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends $alsa && ./RtMidi.Net.PackageTest $TEST_ARGS"
+            echo "::endgroup::"
+          done
 
       - name: Run (Windows)
         if: matrix.mode == 'windows'
-        run: ./package-test/RtMidi.Net.PackageTest.exe --devices
+        run: |
+          for tfm in $TEST_FRAMEWORKS; do
+            echo "::group::$tfm"
+            ./package-test/$tfm/RtMidi.Net.PackageTest.exe --devices
+            echo "::endgroup::"
+          done
 
       - name: Run (macOS)
         if: matrix.mode == 'macos'
-        run: ./package-test/RtMidi.Net.PackageTest --loopback
+        run: |
+          for tfm in $TEST_FRAMEWORKS; do
+            echo "::group::$tfm"
+            ./package-test/$tfm/RtMidi.Net.PackageTest --loopback
+            echo "::endgroup::"
+          done
 
   # ---------------------------------------------------------------------------
   # Publish to nuget.org when a vX.Y.Z tag is pushed, using nuget.org Trusted
@@ -278,7 +346,7 @@ jobs:
     steps:
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.x
       - uses: actions/download-artifact@v4
         with:
           name: nuget-package

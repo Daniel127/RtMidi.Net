@@ -28,6 +28,8 @@ If you find any error or have any improvement do not hesitate to make a PR.
 
 # How to use?
 
+The package targets .NET 8 and .NET 10.
+
 To connect to a device you can use the ``MidiInputClient`` and ``MidiOutputClient`` classes, ``MidiManager`` has useful methods to know the environment.
 
 There is a project (WorkerTest) to test the key reading but it really receives any kind of MIDI message so don't hesitate to extend it if you need it.
@@ -47,6 +49,16 @@ midiInputClient.Open();
 midiInputClient.Close();
 midiInputClient.Dispose();
 ```
+
+Without the event, read the queue with ``TryGetMessage`` (returns immediately), ``GetMessage`` or ``GetMessageAsync`` (wait for the next message). The timestamp is the time since the previous message, as reported by RtMidi.
+
+```csharp
+using var input = new MidiInputClient(device);
+input.Open();
+var (message, timestamp) = await input.GetMessageAsync(cancellationToken);
+if (message is MidiMessageNote { Type: MidiMessageType.NoteOn } note)
+    Console.WriteLine($"{note.Note.GetName()} velocity {note.Velocity}");
+```
 # Native libraries
 
 The NuGet package includes the native RtMidi library for these platforms, so you don't need to build RtMidi yourself:
@@ -59,4 +71,4 @@ The NuGet package includes the native RtMidi library for these platforms, so you
 
 On Linux, the library needs ALSA at runtime (`libasound2`), which is installed on most desktop distributions and on Raspberry Pi OS.
 
-If you want to build the library or the native binaries yourself, see [CONTRIBUTING.md](CONTRIBUTING.md).
+If you want to build the library or the native binaries yourself, see [CONTRIBUTING.md](https://github.com/Daniel127/RtMidi.Net/blob/main/CONTRIBUTING.md).

@@ -1,7 +1,22 @@
 using RtMidi.Net.Enums;
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace RtMidi.Net.InteropServices;
+
+/// <summary>
+/// Handler for messages received through the RtMidi callback.
+/// </summary>
+/// <param name="timestamp">Delta-time in seconds since the previous message.</param>
+/// <param name="message">The message bytes, only valid during the call.</param>
+internal delegate void RtMidiMessageHandler(double timestamp, ReadOnlySpan<byte> message);
+
+/// <summary>
+/// <c>RtMidiCCallback</c>: <c>void (*)(double timeStamp, const unsigned char* message, size_t messageSize, void* userData)</c>.
+/// </summary>
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+internal delegate void RtMidiNativeCallback(double timestamp, IntPtr message, nuint size, IntPtr userData);
 
 /// <summary>
 /// This class provides a common, platform-independent API for
@@ -14,13 +29,33 @@ namespace RtMidi.Net.InteropServices;
 /// possible to open a virtual input port to which other MIDI software
 /// clients can connect.
 /// </summary>
-internal class RtMidiIn : RtMidiBase
+internal sealed class RtMidiIn : RtMidiBase
 {
-#pragma warning disable IDE0052
-    // ReSharper disable once NotAccessedField.Local
-    // Used to prevent garbage collection of the delegate
-    private RtMidiCallback? _midiCallback;
-#pragma warning restore IDE0052
+    /// <summary>
+    /// Size of the buffer used by <see cref="GetMessage()"/>. RtMidi drops a queued
+    /// message that does not fit, so it is large enough for long SysEx dumps.
+    /// </summary>
+    internal const int MessageBufferSize = 64 * 1024;
+
+    // One static delegate for every instance (the instance travels in userData), kept
+    // alive by this field for the lifetime of the process.
+    private static readonly RtMidiNativeCallback NativeCallbackDelegate = OnNativeMessage;
+    private static readonly IntPtr NativeCallbackPointer = Marshal.GetFunctionPointerForDelegate(NativeCallbackDelegate);
+
+    // RtMidi gets a token as userData instead of a GCHandle:
+    // - the registry holds weak references, so a registered callback does not keep an
+    //   undisposed instance (and its client and event subscribers) alive;
+    // - RtMidi 6.0 does not wait for a running callback when it is cancelled, so a late
+    //   callback may still arrive with an old userData. Tokens are never reused and an
+    //   unknown token is ignored, unlike a freed GCHandle, which could crash or reach
+    //   another object.
+    private static readonly ConcurrentDictionary<nint, WeakReference<RtMidiIn>> CallbackRegistry = new();
+    private static long _lastCallbackToken;
+
+    private RtMidiMessageHandler? _handler;
+    private nint _callbackToken;
+    private readonly object _messageBufferLock = new();
+    private byte[]? _messageBuffer;
 
     /// <summary>
     /// Default constructor
@@ -30,64 +65,64 @@ internal class RtMidiIn : RtMidiBase
     }
 
     /// <summary>
-    /// <para>Default constructor that allows an optional api, client name and queue size.</para>
+    /// <para>Constructor that allows an optional api, client name and queue size.</para>
     /// <para>
     /// The queue size defines the maximum number of
     /// messages that can be held in the MIDI queue (when not using a
     /// callback function).  If the queue size limit is reached,
     /// incoming messages will be ignored.
     /// </para>
-    /// <para>
-    /// If no API argument is specified and multiple API support has been
-    /// compiled, the default order of use is ALSA, JACK (Linux) and CORE,
-    /// JACK (OS-X).
-    /// </para>
     /// </summary>
     /// <remarks>An exception will be thrown if a MIDI system initialization
     /// error occurs.</remarks>
-    /// <param name="api"></param>
-    /// <param name="clientName"></param>
-    /// <param name="queueSizeLimit"></param>
     public RtMidiIn(MidiApi api, string clientName, uint queueSizeLimit = 100)
-        : base(EnsureCreated(RtMidiInterop.rtmidi_in_create(api, clientName, queueSizeLimit), RtMidiInterop.rtmidi_in_free))
+        : base(EnsureCreated(RtMidiInterop.rtmidi_in_create((int)api, clientName, queueSizeLimit), RtMidiInterop.rtmidi_in_free))
     {
     }
 
     /// <inheritdoc />
+    protected override string DefaultPortName => "RtMidi Input";
+
+    /// <inheritdoc />
     public override MidiApi GetCurrentApi()
     {
-        return RtMidiInterop.rtmidi_in_get_current_api(RtMidiPtr);
+        return (MidiApi)RtMidiInterop.rtmidi_in_get_current_api(RtMidiPtr);
     }
 
     /// <summary>
-    /// Set a callback function to be invoked for incoming MIDI messages.
+    /// Set a handler to be invoked for incoming MIDI messages.
     /// </summary>
     /// <remarks>
-    /// The callback function will be called whenever an incoming MIDI
-    /// message is received.  While not absolutely necessary, it is best
-    /// to set the callback function before opening a MIDI port to avoid
-    /// leaving some messages in the queue.
+    /// The handler is called on RtMidi's thread whenever a message is received.
+    /// While not absolutely necessary, it is best to set it before opening a
+    /// MIDI port to avoid leaving some messages in the queue.
     /// </remarks>
-    /// <param name="callback">A callback function must be given.</param>
-    /// <param name="userData">Optionally, a pointer to additional data can be
-    /// passed to the callback function whenever it is called.</param>
-    public void SetCallback(RtMidiCallback callback, byte[]? userData)
+    public void SetCallback(RtMidiMessageHandler handler)
     {
-        _midiCallback = callback;
-        RtMidiInterop.rtmidi_in_set_callback(RtMidiPtr, callback, userData);
+        ArgumentNullException.ThrowIfNull(handler);
+        _handler = handler;
+        if (_callbackToken == 0)
+        {
+            _callbackToken = RegisterCallbackTarget(this);
+        }
+
+        RtMidiInterop.rtmidi_in_set_callback(RtMidiPtr, NativeCallbackPointer, _callbackToken);
         ThrowIfError();
     }
 
     /// <summary>
-    /// Cancel use of the current callback function (if one exists).
+    /// Cancel use of the current callback (if one exists).
     /// <para>
     /// Subsequent incoming MIDI messages will be written to the queue
-    /// and can be retrieved with the <see cref="GetMessage"/> function.
+    /// and can be retrieved with the <see cref="GetMessage()"/> function.
     /// </para>
     /// </summary>
     public void CancelCallback()
     {
         RtMidiInterop.rtmidi_in_cancel_callback(RtMidiPtr);
+        // The token stays registered until the instance is released: a callback that
+        // was already running finds no handler and does nothing.
+        _handler = null;
         ThrowIfError();
     }
 
@@ -101,9 +136,6 @@ internal class RtMidiIn : RtMidiBase
     /// values of "true" imply that the respective message type will be
     /// ignored.
     /// </remarks>
-    /// <param name="midiSysex">Ignore MIDI Sysex</param>
-    /// <param name="midiTime">Ignore MIDI Time</param>
-    /// <param name="midiSense">Ignore MIDI Sense</param>
     public void IgnoreTypes(bool midiSysex = true, bool midiTime = true, bool midiSense = true)
     {
         RtMidiInterop.rtmidi_in_ignore_types(RtMidiPtr, midiSysex, midiTime, midiSense);
@@ -111,32 +143,95 @@ internal class RtMidiIn : RtMidiBase
     }
 
     /// <summary>
-    /// Fill the user-provided vector with the data bytes
-    /// for the next available MIDI message in the input queue
-    /// and return the event delta-time in seconds. 
+    /// Takes the next available MIDI message from the input queue.
     /// </summary>
     /// <remarks>
-    /// This function returns immediately whether a new message is
-    /// available or not.
+    /// This function returns immediately whether a new message is available or not.
     /// </remarks>
-    /// <returns>The message and timestamp</returns>
-    public (byte[] message, double timestamp) GetMessage()
+    /// <returns>The message (empty if the queue is empty) and its delta-time in seconds.</returns>
+    public (byte[] message, double timestamp) GetMessage() => GetMessage(ReadQueuedMessage);
+
+    /// <summary>
+    /// Reads the next queued message like <c>rtmidi_in_get_message</c>: copies it into
+    /// <paramref name="buffer"/> only when it fits, and always sets <paramref name="size"/>
+    /// to its length (0 if the queue is empty).
+    /// </summary>
+    internal delegate double QueuedMessageReader(byte[] buffer, ref nuint size);
+
+    /// <summary>
+    /// <see cref="GetMessage()"/> with the native read replaced (for tests).
+    /// </summary>
+    internal (byte[] message, double timestamp) GetMessage(QueuedMessageReader reader)
     {
-        var size = 1024;
-        var messagePtr = Marshal.AllocHGlobal(size);
+        lock (_messageBufferLock)
+        {
+            _messageBuffer ??= new byte[MessageBufferSize];
+            var size = (nuint)_messageBuffer.Length;
+            var timestamp = reader(_messageBuffer, ref size);
 
-        var timestamp = RtMidiInterop.rtmidi_in_get_message(RtMidiPtr, messagePtr, ref size);
-        var message = new byte[size];
-        Marshal.Copy(messagePtr, message, 0, size);
-        Marshal.FreeHGlobal(messagePtr);
+            ThrowIfError();
 
-        return (message, timestamp);
+            if (size == 0) return ([], timestamp);
+            if (size > (nuint)_messageBuffer.Length)
+            {
+                // RtMidi already removed it from the queue without copying it.
+                Trace.TraceWarning($"RtMidi.Net: dropped a {size} byte MIDI message larger than the {MessageBufferSize} byte buffer.");
+                return ([], timestamp);
+            }
+
+            return (_messageBuffer.AsSpan(0, (int)size).ToArray(), timestamp);
+        }
+    }
+
+    private double ReadQueuedMessage(byte[] buffer, ref nuint size) =>
+        RtMidiInterop.rtmidi_in_get_message(RtMidiPtr, buffer, ref size);
+
+    /// <summary>
+    /// Called by RtMidi on its thread for every message (internal for tests).
+    /// </summary>
+    internal static void OnNativeMessage(double timestamp, IntPtr message, nuint size, IntPtr userData)
+    {
+        // An exception must never cross back into native code (it would terminate the process).
+        try
+        {
+            if (userData == IntPtr.Zero || message == IntPtr.Zero) return;
+            if (!CallbackRegistry.TryGetValue(userData, out var reference)) return;
+            if (!reference.TryGetTarget(out var instance) || instance._handler is not { } handler) return;
+            var data = new byte[checked((int)size)];
+            Marshal.Copy(message, data, 0, data.Length);
+            handler(timestamp, data);
+        }
+        catch (Exception ex)
+        {
+            Trace.TraceError($"RtMidi.Net: unhandled exception in the MIDI message handler: {ex}");
+        }
+    }
+
+    /// <summary>
+    /// The user data RtMidi passes to the callback (for tests).
+    /// </summary>
+    internal IntPtr CallbackUserData => _callbackToken;
+
+    private static nint RegisterCallbackTarget(RtMidiIn target)
+    {
+        var token = (nint)Interlocked.Increment(ref _lastCallbackToken);
+        CallbackRegistry[token] = new WeakReference<RtMidiIn>(target);
+        return token;
+    }
+
+    private void UnregisterCallback()
+    {
+        if (_callbackToken == 0) return;
+        CallbackRegistry.TryRemove(_callbackToken, out _);
+        _callbackToken = 0;
     }
 
     /// <inheritdoc />
     protected override void ReleaseUnmanagedResources()
     {
-        _midiCallback = null;
+        // Freeing the native object stops its callback thread, so the token can go after it.
         RtMidiInterop.rtmidi_in_free(RtMidiPtr);
+        _handler = null;
+        UnregisterCallback();
     }
 }

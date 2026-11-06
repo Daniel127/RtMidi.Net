@@ -1,23 +1,15 @@
-using RtMidi.Net.Enums;
 using RtMidi.Net.InteropServices;
 
 namespace RtMidi.Net.Clients;
 
+/// <summary>
+/// Base of the MIDI input and output clients.
+/// </summary>
 public abstract class MidiClient : IDisposable
 {
     private readonly MidiDeviceInfo? _deviceInfo;
     internal readonly RtMidiBase RtMidiClient;
     private bool _disposedValue;
-
-    private protected MidiClient(uint deviceId, RtMidiBase rtMidiClient)
-    {
-        RtMidiClient = rtMidiClient;
-        _deviceInfo = new MidiDeviceInfo(
-            RtMidiClient.GetPortName(deviceId),
-            deviceId,
-            RtMidiClient.GetCurrentApi(),
-            RtMidiClient is RtMidiIn ? MidiDeviceType.Input : MidiDeviceType.Output);
-    }
 
     private protected MidiClient(RtMidiBase rtMidiClient)
     {
@@ -26,10 +18,15 @@ public abstract class MidiClient : IDisposable
 
     private protected MidiClient(MidiDeviceInfo deviceInfo, RtMidiBase rtMidiClient)
     {
+        ArgumentNullException.ThrowIfNull(deviceInfo);
         _deviceInfo = deviceInfo;
         RtMidiClient = rtMidiClient;
     }
 
+    /// <summary>
+    /// Opens the device given in the constructor. Does nothing if it is already open.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The client was created without a device.</exception>
     public void Open()
     {
         if (RtMidiClient.IsPortOpen) return;
@@ -48,11 +45,17 @@ public abstract class MidiClient : IDisposable
         RtMidiClient.OpenVirtualPort(virtualPortName);
     }
 
+    /// <summary>
+    /// Closes the port (device or virtual) if one is open.
+    /// </summary>
     public void Close()
     {
         RtMidiClient.ClosePort();
     }
 
+    /// <summary>
+    /// Releases the native RtMidi object (which also closes the port).
+    /// </summary>
     protected virtual void Dispose(bool disposing)
     {
         if (!_disposedValue)
@@ -65,11 +68,7 @@ public abstract class MidiClient : IDisposable
         }
     }
 
-    ~MidiClient()
-    {
-        Dispose(disposing: false);
-    }
-
+    /// <inheritdoc />
     public void Dispose()
     {
         Dispose(disposing: true);

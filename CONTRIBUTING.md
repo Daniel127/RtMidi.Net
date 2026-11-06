@@ -23,6 +23,25 @@ To pack locally with your own builds:
 
 To build the Linux library on your machine, run `.github/scripts/build-rtmidi-linux.sh artifacts/native/linux-x64/native`. It needs `g++` and `libasound2-dev`.
 
+## Building
+
+You need the .NET 10 SDK (see `global.json`); it builds the .NET 8 and .NET 10 targets.
+
+## Unit tests
+
+[`tests/RtMidi.Net.Tests`](tests/RtMidi.Net.Tests) covers message parsing and encoding, notes and the input polling without any MIDI device:
+
+```bash
+dotnet test --project tests/RtMidi.Net.Tests
+```
+
+The tests in `Native/` also call the native library. They are skipped unless you pass one; CI uses RtMidi built with its dummy API, which needs no MIDI system:
+
+```bash
+.github/scripts/build-rtmidi-dummy.sh artifacts/test-native
+dotnet test --project tests/RtMidi.Net.Tests -p:RtMidiTestLibrary=$PWD/artifacts/test-native/librtmidi.so
+```
+
 ## Testing the package
 
 [`tests/RtMidi.Net.PackageTest`](tests/RtMidi.Net.PackageTest) installs the built package and uses it on every platform in CI:
@@ -35,7 +54,7 @@ To run it locally:
 
 ```bash
 dotnet pack RtMidi.Net/RtMidi.Net.csproj -c Release -o artifacts/nuget
-dotnet run --project tests/RtMidi.Net.PackageTest -- --loopback
+dotnet run --project tests/RtMidi.Net.PackageTest -f net10.0 -- --loopback
 ```
 
 ## Updating RtMidi

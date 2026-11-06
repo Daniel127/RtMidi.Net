@@ -1,5 +1,6 @@
 using RtMidi.Net.Enums;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace RtMidi.Net.InteropServices;
 
@@ -9,6 +10,7 @@ namespace RtMidi.Net.InteropServices;
 internal abstract class RtMidiBase : IDisposable
 {
     protected readonly IntPtr RtMidiPtr;
+    private bool _disposed;
 
     /// <summary>
     /// Check if a port is open.
@@ -20,11 +22,32 @@ internal abstract class RtMidiBase : IDisposable
     /// <returns>Returns true if a port is open and false if not.</returns>
     public bool IsPortOpen { get; private set; }
 
+    /// <summary>
+    /// Name given to the application port when <see cref="OpenPort"/> is called
+    /// without one (the same default as the C++ API).
+    /// </summary>
+    protected abstract string DefaultPortName { get; }
+
     protected RtMidiBase(IntPtr rtMidiPtr)
     {
         RtMidiPtr = rtMidiPtr;
         IsPortOpen = false;
     }
+
+    #region Errors
+
+    // Layout of the native RtMidiWrapper struct (rtmidi_c.h, RtMidi 6.0):
+    //   void* ptr; void* data; bool ok; const char* msg;
+    // ok is a 1-byte C bool right after the two pointers; msg is pointer-aligned after it.
+    private static readonly int OkOffset = 2 * IntPtr.Size;
+    private static readonly int MsgOffset = 3 * IntPtr.Size;
+
+    private const string GenericError = "RtMidi reported an error (RtMidi prints the details to stderr).";
+
+    private static bool IsOk(IntPtr wrapper) => Marshal.ReadByte(wrapper, OkOffset) != 0;
+
+    private static string ReadError(IntPtr wrapper) =>
+        ReadErrorMessage(Marshal.ReadIntPtr(wrapper, MsgOffset)) ?? GenericError;
 
     /// <summary>
     /// Checks the result of an <c>rtmidi_*_create</c> call. If the native object
@@ -33,62 +56,39 @@ internal abstract class RtMidiBase : IDisposable
     /// </summary>
     protected static IntPtr EnsureCreated(IntPtr rtMidiPtr, Action<IntPtr> free)
     {
-        var wrapper = Marshal.PtrToStructure<RtMidiWrapper>(rtMidiPtr);
-        if (wrapper.Ok) return rtMidiPtr;
+        if (rtMidiPtr == IntPtr.Zero) throw new RtMidiException(GenericError);
 
-        var error = ReadErrorMessage(wrapper.Msg) ?? GenericError;
+        if (IsOk(rtMidiPtr)) return rtMidiPtr;
+
+        var error = ReadError(rtMidiPtr);
         free(rtMidiPtr);
         throw new RtMidiException(error);
     }
 
     /// <summary>
-    /// Layout of the native <c>RtMidiWrapper</c> struct (rtmidi_c.h).
+    /// Reads the error text of the wrapper.
     /// </summary>
-    [StructLayout(LayoutKind.Sequential)]
-    private struct RtMidiWrapper
-    {
-        public IntPtr Ptr;
-        public IntPtr Data;
-        [MarshalAs(UnmanagedType.U1)] public bool Ok;
-        public IntPtr Msg;
-    }
-
-    private const string GenericError = "RtMidi reported an error (RtMidi prints the details to stderr).";
-
-    private static readonly int OkFieldOffset = (int)Marshal.OffsetOf<RtMidiWrapper>(nameof(RtMidiWrapper.Ok));
-
-    private bool TryGetError(out string error)
-    {
-        var wrapper = Marshal.PtrToStructure<RtMidiWrapper>(RtMidiPtr);
-        if (wrapper.Ok)
-        {
-            error = string.Empty;
-            return false;
-        }
-
-        // RtMidi 6.0 stores err.what() of an exception that is already destroyed,
-        // so the text may be garbage. Read it defensively and only use it when it
-        // looks like real text; RtMidi also prints the error to stderr.
-        error = ReadErrorMessage(wrapper.Msg) ?? GenericError;
-        return true;
-    }
-
+    /// <remarks>
+    /// RtMidi 6.0 stores err.what() of an exception that is already destroyed,
+    /// so the text may be garbage. Read it defensively and only use it when it
+    /// looks like real text; RtMidi also prints the error to stderr.
+    /// </remarks>
     private static string? ReadErrorMessage(IntPtr msgPtr)
     {
         if (msgPtr == IntPtr.Zero) return null;
 
         const int maxLength = 512;
-        var bytes = new List<byte>();
+        var text = new StringBuilder();
         for (var i = 0; i < maxLength; i++)
         {
             var b = Marshal.ReadByte(msgPtr, i);
-            if (b == 0) break;
+            if (b == 0) return text.Length > 0 ? text.ToString() : null;
             // Printable ASCII only: RtMidi messages are plain English text.
             if (b is < 0x20 or > 0x7E) return null;
-            bytes.Add(b);
+            text.Append((char)b);
         }
 
-        return bytes.Count is > 0 and < maxLength ? System.Text.Encoding.ASCII.GetString(bytes.ToArray()) : null;
+        return null;
     }
 
     /// <summary>
@@ -96,44 +96,42 @@ internal abstract class RtMidiBase : IDisposable
     /// </summary>
     protected void ThrowIfError()
     {
-        if (!TryGetError(out var error)) return;
+        if (IsOk(RtMidiPtr)) return;
 
+        var error = ReadError(RtMidiPtr);
         // The C API never resets the flag on success, so clear it here.
-        Marshal.WriteByte(RtMidiPtr, OkFieldOffset, 1);
+        Marshal.WriteByte(RtMidiPtr, OkOffset, 1);
         throw new RtMidiException(error);
     }
+
+    #endregion
 
     /// <summary>
     /// Returns the MIDI API specifier for the current instance of RtMidi.
     /// </summary>
-    /// <returns></returns>
     public abstract MidiApi GetCurrentApi();
 
     /// <summary>
-    /// Open a MIDI input connection given by enumeration number.
+    /// Open a MIDI connection given by enumeration number.
     /// </summary>
-    /// <param name="portNumber">An optional port number greater than 0 can be specified.
-    /// Otherwise, the default or first port found is opened.</param>
+    /// <param name="portNumber">The port number.</param>
     /// <param name="portName">An optional name for the application port that is used to connect to portId can be specified.</param>
     public void OpenPort(uint portNumber, string? portName = null)
     {
-        portName ??= GetPortName(portNumber); //Work around if string is null, TODO Try send IntPtr.Zero
-        RtMidiInterop.rtmidi_open_port(RtMidiPtr, portNumber, portName);
+        // The C API copies the name into a std::string, so it must not be null.
+        RtMidiInterop.rtmidi_open_port(RtMidiPtr, portNumber, portName ?? DefaultPortName);
         ThrowIfError();
         IsPortOpen = true;
     }
 
     /// <summary>
-    /// Create a virtual input port, with optional name, to allow software connections (OS X, JACK and ALSA only).
+    /// Create a virtual port, to allow software connections (OS X, JACK and ALSA only).
     /// </summary>
     /// <remarks>
-    /// This function creates a virtual MIDI input port to which other
-    /// software applications can connect.  This type of functionality
-    /// is currently only supported by the Macintosh OS-X, any JACK,
-    /// and Linux ALSA APIs (the function returns an error for the other APIs).
+    /// This type of functionality is currently only supported by the Macintosh OS-X,
+    /// any JACK, and Linux ALSA APIs (the function returns an error for the other APIs).
     /// </remarks>
-    /// <param name="portName">An optional name for the application port that is
-    /// used to connect to portId can be specified.</param>
+    /// <param name="portName">The name of the virtual port.</param>
     public void OpenVirtualPort(string portName)
     {
         RtMidiInterop.rtmidi_open_virtual_port(RtMidiPtr, portName);
@@ -141,9 +139,8 @@ internal abstract class RtMidiBase : IDisposable
     }
 
     /// <summary>
-    /// Return the number of available MIDI input ports.
+    /// Return the number of available MIDI ports.
     /// </summary>
-    /// <returns>This function returns the number of MIDI ports of the selected API.</returns>
     public uint GetPortCount()
     {
         var count = RtMidiInterop.rtmidi_get_port_count(RtMidiPtr);
@@ -152,45 +149,33 @@ internal abstract class RtMidiBase : IDisposable
     }
 
     /// <summary>
-    /// Return a string identifier for the specified MIDI input port number.
+    /// Return a string identifier for the specified MIDI port number.
     /// </summary>
     /// <param name="portNumber">The port number</param>
-    /// <param name="nameSize">Optional name size to return</param>
     /// <returns>
     /// The name of the port with the given Id is returned.
-    /// <para>An empty string is returned if an invalid port specifier
-    /// is provided. User code should assume a UTF-8 encoding.</para>
+    /// <para>An empty string is returned if an invalid port specifier is provided.</para>
     /// </returns>
-    public string GetPortName(uint portNumber, uint? nameSize = null)
+    public string GetPortName(uint portNumber)
     {
-        string? message;
-        var messagePtr = IntPtr.Zero;
-        var bufferNameSize = 1U;
-        int resultInterop;
-
-        if (!nameSize.HasValue)
+        var length = 0;
+        if (RtMidiInterop.rtmidi_get_port_name(RtMidiPtr, portNumber, null, ref length) < 0)
         {
-            resultInterop = RtMidiInterop.rtmidi_get_port_name(RtMidiPtr, portNumber, messagePtr, ref bufferNameSize);
-            if (resultInterop == -1) throw new Exception();
-        }
-        else
-        {
-            bufferNameSize = nameSize.Value;
+            ThrowIfError();
+            throw new RtMidiException($"Could not read the name of port {portNumber}.");
         }
 
-        messagePtr = Marshal.AllocHGlobal((int)bufferNameSize);
-        try
+        if (length <= 1) return string.Empty;
+
+        var buffer = new byte[length];
+        if (RtMidiInterop.rtmidi_get_port_name(RtMidiPtr, portNumber, buffer, ref length) < 0)
         {
-            resultInterop = RtMidiInterop.rtmidi_get_port_name(RtMidiPtr, portNumber, messagePtr, ref bufferNameSize);
-            message = Marshal.PtrToStringUTF8(messagePtr);
-            if (resultInterop == -1) throw new Exception();
-        }
-        finally
-        {
-            Marshal.FreeHGlobal(messagePtr);
+            ThrowIfError();
+            throw new RtMidiException($"Could not read the name of port {portNumber}.");
         }
 
-        return message ?? "";
+        var terminator = Array.IndexOf(buffer, (byte)0);
+        return Encoding.UTF8.GetString(buffer, 0, terminator < 0 ? buffer.Length : terminator);
     }
 
     /// <summary>
@@ -206,32 +191,34 @@ internal abstract class RtMidiBase : IDisposable
     #region Dispose
 
     /// <summary>
-    /// Release the unmanaged resources on Dispose
+    /// Release the unmanaged resources (the native RtMidi object).
     /// </summary>
     protected abstract void ReleaseUnmanagedResources();
 
-    private bool _released;
-
-    private void Release()
+    /// <summary>
+    /// Dispose pattern.
+    /// </summary>
+    /// <param name="disposing">true from <see cref="Dispose()"/>, false from the finalizer.</param>
+    protected virtual void Dispose(bool disposing)
     {
+        if (_disposed) return;
+        _disposed = true;
         // RtMidiPtr is zero when construction failed in EnsureCreated (the
         // wrapper was already freed there), so there is nothing to release.
-        if (_released || RtMidiPtr == IntPtr.Zero) return;
-        _released = true;
-        ReleaseUnmanagedResources();
+        if (RtMidiPtr != IntPtr.Zero) ReleaseUnmanagedResources();
     }
 
     /// <inheritdoc />
     public void Dispose()
     {
-        Release();
+        Dispose(disposing: true);
         GC.SuppressFinalize(this);
     }
 
     /// <inheritdoc />
     ~RtMidiBase()
     {
-        Release();
+        Dispose(disposing: false);
     }
 
     #endregion
@@ -248,15 +235,14 @@ internal abstract class RtMidiBase : IDisposable
     /// <returns>Available APIs</returns>
     public static IReadOnlyCollection<MidiApi> GetCompiledApi()
     {
-        var apis = Array.Empty<byte>();
-        var unmanagedPointer = Marshal.AllocHGlobal(apis.Length);
-        Marshal.Copy(apis, 0, unmanagedPointer, apis.Length);
-        var result = RtMidiInterop.rtmidi_get_compiled_api(unmanagedPointer, sizeof(MidiApi));
-        apis = new byte[result];
-        Marshal.Copy(unmanagedPointer, apis, 0, result);
-        var apisResult = apis.Cast<MidiApi>().ToList();
-        Marshal.FreeHGlobal(unmanagedPointer);
-        return apisResult;
+        var count = RtMidiInterop.rtmidi_get_compiled_api(null, 0);
+        if (count <= 0) return [];
+
+        // C enum RtMidiApi values are ints.
+        var apis = new int[count];
+        count = RtMidiInterop.rtmidi_get_compiled_api(apis, (uint)apis.Length);
+
+        return apis.Take(Math.Max(count, 0)).Select(api => (MidiApi)api).ToList();
     }
 
     /// <summary>
@@ -273,9 +259,7 @@ internal abstract class RtMidiBase : IDisposable
     /// </returns>
     public static string GetApiName(MidiApi api)
     {
-        var ptr = RtMidiInterop.rtmidi_api_name(api);
-        var name = Marshal.PtrToStringUTF8(ptr);
-        return name ?? string.Empty;
+        return Marshal.PtrToStringUTF8(RtMidiInterop.rtmidi_api_name((int)api)) ?? string.Empty;
     }
 
     /// <summary>
@@ -291,9 +275,7 @@ internal abstract class RtMidiBase : IDisposable
     /// </returns>
     public static string GetApiDisplayName(MidiApi api)
     {
-        var ptr = RtMidiInterop.rtmidi_api_display_name(api);
-        var name = Marshal.PtrToStringUTF8(ptr);
-        return name ?? string.Empty;
+        return Marshal.PtrToStringUTF8(RtMidiInterop.rtmidi_api_display_name((int)api)) ?? string.Empty;
     }
 
     /// <summary>
@@ -302,17 +284,15 @@ internal abstract class RtMidiBase : IDisposable
     /// <returns> The version of the RtMidi library </returns>
     public static string GetRtMidiVersion()
     {
-        var ptr = RtMidiInterop.rtmidi_get_version();
-        var name = Marshal.PtrToStringUTF8(ptr);
-        return name ?? string.Empty;
+        return Marshal.PtrToStringUTF8(RtMidiInterop.rtmidi_get_version()) ?? string.Empty;
     }
 
     /// <summary>
     /// Return the compiled MIDI API having the given name.
     /// </summary>
     /// <remarks>
-    /// A case insensitive comparison will check the specified name
-    /// against the list of compiled APIs.
+    /// The name is compared with the short names of the compiled APIs
+    /// (see <see cref="GetApiName"/>); RtMidi 6.0 compares them case-sensitively.
     /// </remarks>
     /// <param name="name">The API name</param>
     /// <returns>
@@ -321,7 +301,7 @@ internal abstract class RtMidiBase : IDisposable
     /// </returns>
     public static MidiApi GetCompiledApiByName(string name)
     {
-        return RtMidiInterop.rtmidi_compiled_api_by_name(name);
+        return (MidiApi)RtMidiInterop.rtmidi_compiled_api_by_name(name);
     }
 
     #endregion
