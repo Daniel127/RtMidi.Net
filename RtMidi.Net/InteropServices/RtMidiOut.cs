@@ -11,7 +11,7 @@ namespace RtMidi.Net.InteropServices;
 /// OS-X, Linux ALSA and JACK MIDI APIs, it is also possible to open a
 /// virtual port to which other MIDI software clients can connect.
 /// </summary>
-internal sealed unsafe class RtMidiOut : RtMidiBase
+internal sealed class RtMidiOut : RtMidiBase
 {
     /// <summary>
     /// Default constructor
@@ -48,15 +48,11 @@ internal sealed unsafe class RtMidiOut : RtMidiBase
     /// <remarks>An exception is thrown if an error occurs during output or an
     /// output connection was not previously established.</remarks>
     /// <param name="message">Message to send</param>
-    public void SendMessage(ReadOnlySpan<byte> message)
+    public void SendMessage(byte[] message)
     {
-        if (message.IsEmpty) throw new ArgumentException("The message is empty.", nameof(message));
+        if (message.Length == 0) throw new ArgumentException("The message is empty.", nameof(message));
 
-        fixed (byte* messagePtr = message)
-        {
-            RtMidiInterop.rtmidi_out_send_message(RtMidiPtr, messagePtr, message.Length);
-        }
-
+        RtMidiInterop.rtmidi_out_send_message(RtMidiPtr, message, message.Length);
         ThrowIfError();
     }
 

@@ -1,6 +1,5 @@
 using RtMidi.Net.Enums;
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace RtMidi.Net.InteropServices;
@@ -13,6 +12,12 @@ namespace RtMidi.Net.InteropServices;
 internal delegate void RtMidiMessageHandler(double timestamp, ReadOnlySpan<byte> message);
 
 /// <summary>
+/// <c>RtMidiCCallback</c>: <c>void (*)(double timeStamp, const unsigned char* message, size_t messageSize, void* userData)</c>.
+/// </summary>
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+internal delegate void RtMidiNativeCallback(double timestamp, IntPtr message, nuint size, IntPtr userData);
+
+/// <summary>
 /// This class provides a common, platform-independent API for
 /// realtime MIDI input.  It allows access to a single MIDI input
 /// port.  Incoming MIDI messages are either saved to a queue for
@@ -23,13 +28,18 @@ internal delegate void RtMidiMessageHandler(double timestamp, ReadOnlySpan<byte>
 /// possible to open a virtual input port to which other MIDI software
 /// clients can connect.
 /// </summary>
-internal sealed unsafe class RtMidiIn : RtMidiBase
+internal sealed class RtMidiIn : RtMidiBase
 {
     /// <summary>
     /// Size of the buffer used by <see cref="GetMessage"/>. RtMidi drops a queued
     /// message that does not fit, so it is large enough for long SysEx dumps.
     /// </summary>
     internal const int MessageBufferSize = 64 * 1024;
+
+    // One static delegate for every instance (the instance travels in userData), kept
+    // alive by this field for the lifetime of the process.
+    private static readonly RtMidiNativeCallback NativeCallbackDelegate = OnNativeMessage;
+    private static readonly IntPtr NativeCallbackPointer = Marshal.GetFunctionPointerForDelegate(NativeCallbackDelegate);
 
     private RtMidiMessageHandler? _handler;
     private GCHandle _callbackHandle;
@@ -85,7 +95,7 @@ internal sealed unsafe class RtMidiIn : RtMidiBase
             _callbackHandle = GCHandle.Alloc(this);
         }
 
-        RtMidiInterop.rtmidi_in_set_callback(RtMidiPtr, &OnNativeMessage, GCHandle.ToIntPtr(_callbackHandle));
+        RtMidiInterop.rtmidi_in_set_callback(RtMidiPtr, NativeCallbackPointer, GCHandle.ToIntPtr(_callbackHandle));
         ThrowIfError();
     }
 
@@ -133,11 +143,7 @@ internal sealed unsafe class RtMidiIn : RtMidiBase
         {
             _messageBuffer ??= new byte[MessageBufferSize];
             var size = (nuint)_messageBuffer.Length;
-            double timestamp;
-            fixed (byte* bufferPtr = _messageBuffer)
-            {
-                timestamp = RtMidiInterop.rtmidi_in_get_message(RtMidiPtr, bufferPtr, &size);
-            }
+            var timestamp = RtMidiInterop.rtmidi_in_get_message(RtMidiPtr, _messageBuffer, ref size);
 
             ThrowIfError();
 
@@ -153,15 +159,19 @@ internal sealed unsafe class RtMidiIn : RtMidiBase
         }
     }
 
-    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static void OnNativeMessage(double timestamp, byte* message, nuint size, IntPtr userData)
+    /// <summary>
+    /// Called by RtMidi on its thread for every message (internal for tests).
+    /// </summary>
+    internal static void OnNativeMessage(double timestamp, IntPtr message, nuint size, IntPtr userData)
     {
         // An exception must never cross back into native code (it would terminate the process).
         try
         {
-            if (userData == IntPtr.Zero) return;
+            if (userData == IntPtr.Zero || message == IntPtr.Zero) return;
             if (GCHandle.FromIntPtr(userData).Target is not RtMidiIn { _handler: { } handler }) return;
-            handler(timestamp, new ReadOnlySpan<byte>(message, checked((int)size)));
+            var data = new byte[checked((int)size)];
+            Marshal.Copy(message, data, 0, data.Length);
+            handler(timestamp, data);
         }
         catch (Exception ex)
         {
@@ -170,10 +180,8 @@ internal sealed unsafe class RtMidiIn : RtMidiBase
     }
 
     /// <summary>
-    /// The native callback and the user data RtMidi passes to it (for tests).
+    /// The user data RtMidi passes to the callback (for tests).
     /// </summary>
-    internal static delegate* unmanaged[Cdecl]<double, byte*, nuint, IntPtr, void> NativeCallback => &OnNativeMessage;
-
     internal IntPtr CallbackUserData => _callbackHandle.IsAllocated ? GCHandle.ToIntPtr(_callbackHandle) : IntPtr.Zero;
 
     private void FreeCallbackHandle()

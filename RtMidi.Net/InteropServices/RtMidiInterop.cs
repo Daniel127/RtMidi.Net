@@ -18,9 +18,10 @@ namespace RtMidi.Net.InteropServices;
 /// <item><c>bool</c> is the 1-byte C/C++ bool.</item>
 /// <item><c>size_t</c> is <see cref="nuint"/>.</item>
 /// <item>Strings are UTF-8.</item>
+/// <item>Buffers are blittable arrays, pinned by the generated code, so no unsafe code is needed here.</item>
 /// </list>
 /// </remarks>
-internal static unsafe partial class RtMidiInterop
+internal static partial class RtMidiInterop
 {
     private const string RtMidiLibrary = "rtmidi";
 
@@ -42,7 +43,7 @@ internal static unsafe partial class RtMidiInterop
     /// </returns>
     [LibraryImport(RtMidiLibrary)]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static partial int rtmidi_get_compiled_api(int* apis, uint apisSize);
+    internal static partial int rtmidi_get_compiled_api([Out] int[]? apis, uint apisSize);
 
     /// <summary>
     /// Return the short lower-case name of a compiled MIDI API, or null if unknown.
@@ -111,7 +112,7 @@ internal static unsafe partial class RtMidiInterop
     /// <returns>-1 on error.</returns>
     [LibraryImport(RtMidiLibrary)]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static partial int rtmidi_get_port_name(IntPtr device, uint portNumber, byte* bufOut, int* bufLen);
+    internal static partial int rtmidi_get_port_name(IntPtr device, uint portNumber, [Out] byte[]? bufOut, ref int bufLen);
 
     #endregion
 
@@ -153,8 +154,7 @@ internal static unsafe partial class RtMidiInterop
     /// <param name="userData">Passed back to the callback.</param>
     [LibraryImport(RtMidiLibrary)]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static partial void rtmidi_in_set_callback(IntPtr device,
-        delegate* unmanaged[Cdecl]<double, byte*, nuint, IntPtr, void> callback, IntPtr userData);
+    internal static partial void rtmidi_in_set_callback(IntPtr device, IntPtr callback, IntPtr userData);
 
     /// <summary>
     /// Cancel use of the current callback function (if one exists).
@@ -184,7 +184,7 @@ internal static unsafe partial class RtMidiInterop
     /// (0 if the queue is empty). If it is larger than the buffer, nothing is copied.</param>
     [LibraryImport(RtMidiLibrary)]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static partial double rtmidi_in_get_message(IntPtr device, byte* message, nuint* size);
+    internal static partial double rtmidi_in_get_message(IntPtr device, [Out] byte[] message, ref nuint size);
 
     #endregion
 
@@ -223,7 +223,7 @@ internal static unsafe partial class RtMidiInterop
     /// </summary>
     [LibraryImport(RtMidiLibrary)]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static partial int rtmidi_out_send_message(IntPtr device, byte* message, int length);
+    internal static partial int rtmidi_out_send_message(IntPtr device, byte[] message, int length);
 
     #endregion
 }

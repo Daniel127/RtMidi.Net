@@ -7,7 +7,7 @@ namespace RtMidi.Net.InteropServices;
 /// <summary>
 /// RtMidi base
 /// </summary>
-internal abstract unsafe class RtMidiBase : IDisposable
+internal abstract class RtMidiBase : IDisposable
 {
     protected readonly IntPtr RtMidiPtr;
     private bool _disposed;
@@ -36,19 +36,18 @@ internal abstract unsafe class RtMidiBase : IDisposable
 
     #region Errors
 
-    /// <summary>
-    /// Layout of the native <c>RtMidiWrapper</c> struct (rtmidi_c.h, RtMidi 6.0).
-    /// </summary>
-    [StructLayout(LayoutKind.Sequential)]
-    private struct RtMidiWrapper
-    {
-        public IntPtr Ptr;
-        public IntPtr Data;
-        public byte Ok; // C bool
-        public IntPtr Msg;
-    }
+    // Layout of the native RtMidiWrapper struct (rtmidi_c.h, RtMidi 6.0):
+    //   void* ptr; void* data; bool ok; const char* msg;
+    // ok is a 1-byte C bool right after the two pointers; msg is pointer-aligned after it.
+    private static readonly int OkOffset = 2 * IntPtr.Size;
+    private static readonly int MsgOffset = 3 * IntPtr.Size;
 
     private const string GenericError = "RtMidi reported an error (RtMidi prints the details to stderr).";
+
+    private static bool IsOk(IntPtr wrapper) => Marshal.ReadByte(wrapper, OkOffset) != 0;
+
+    private static string ReadError(IntPtr wrapper) =>
+        ReadErrorMessage(Marshal.ReadIntPtr(wrapper, MsgOffset)) ?? GenericError;
 
     /// <summary>
     /// Checks the result of an <c>rtmidi_*_create</c> call. If the native object
@@ -59,10 +58,9 @@ internal abstract unsafe class RtMidiBase : IDisposable
     {
         if (rtMidiPtr == IntPtr.Zero) throw new RtMidiException(GenericError);
 
-        var wrapper = (RtMidiWrapper*)rtMidiPtr;
-        if (wrapper->Ok != 0) return rtMidiPtr;
+        if (IsOk(rtMidiPtr)) return rtMidiPtr;
 
-        var error = ReadErrorMessage(wrapper->Msg) ?? GenericError;
+        var error = ReadError(rtMidiPtr);
         free(rtMidiPtr);
         throw new RtMidiException(error);
     }
@@ -80,16 +78,17 @@ internal abstract unsafe class RtMidiBase : IDisposable
         if (msgPtr == IntPtr.Zero) return null;
 
         const int maxLength = 512;
-        var text = (byte*)msgPtr;
-        var length = 0;
-        while (length < maxLength && text[length] != 0)
+        var text = new StringBuilder();
+        for (var i = 0; i < maxLength; i++)
         {
+            var b = Marshal.ReadByte(msgPtr, i);
+            if (b == 0) return text.Length > 0 ? text.ToString() : null;
             // Printable ASCII only: RtMidi messages are plain English text.
-            if (text[length] is < 0x20 or > 0x7E) return null;
-            length++;
+            if (b is < 0x20 or > 0x7E) return null;
+            text.Append((char)b);
         }
 
-        return length is > 0 and < maxLength ? Encoding.ASCII.GetString(text, length) : null;
+        return null;
     }
 
     /// <summary>
@@ -97,12 +96,11 @@ internal abstract unsafe class RtMidiBase : IDisposable
     /// </summary>
     protected void ThrowIfError()
     {
-        var wrapper = (RtMidiWrapper*)RtMidiPtr;
-        if (wrapper->Ok != 0) return;
+        if (IsOk(RtMidiPtr)) return;
 
-        var error = ReadErrorMessage(wrapper->Msg) ?? GenericError;
+        var error = ReadError(RtMidiPtr);
         // The C API never resets the flag on success, so clear it here.
-        wrapper->Ok = 1;
+        Marshal.WriteByte(RtMidiPtr, OkOffset, 1);
         throw new RtMidiException(error);
     }
 
@@ -161,7 +159,7 @@ internal abstract unsafe class RtMidiBase : IDisposable
     public string GetPortName(uint portNumber)
     {
         var length = 0;
-        if (RtMidiInterop.rtmidi_get_port_name(RtMidiPtr, portNumber, null, &length) < 0)
+        if (RtMidiInterop.rtmidi_get_port_name(RtMidiPtr, portNumber, null, ref length) < 0)
         {
             ThrowIfError();
             throw new RtMidiException($"Could not read the name of port {portNumber}.");
@@ -170,13 +168,10 @@ internal abstract unsafe class RtMidiBase : IDisposable
         if (length <= 1) return string.Empty;
 
         var buffer = new byte[length];
-        fixed (byte* bufferPtr = buffer)
+        if (RtMidiInterop.rtmidi_get_port_name(RtMidiPtr, portNumber, buffer, ref length) < 0)
         {
-            if (RtMidiInterop.rtmidi_get_port_name(RtMidiPtr, portNumber, bufferPtr, &length) < 0)
-            {
-                ThrowIfError();
-                throw new RtMidiException($"Could not read the name of port {portNumber}.");
-            }
+            ThrowIfError();
+            throw new RtMidiException($"Could not read the name of port {portNumber}.");
         }
 
         var terminator = Array.IndexOf(buffer, (byte)0);
@@ -245,10 +240,7 @@ internal abstract unsafe class RtMidiBase : IDisposable
 
         // C enum RtMidiApi values are ints.
         var apis = new int[count];
-        fixed (int* apisPtr = apis)
-        {
-            count = RtMidiInterop.rtmidi_get_compiled_api(apisPtr, (uint)apis.Length);
-        }
+        count = RtMidiInterop.rtmidi_get_compiled_api(apis, (uint)apis.Length);
 
         return apis.Take(Math.Max(count, 0)).Select(api => (MidiApi)api).ToList();
     }

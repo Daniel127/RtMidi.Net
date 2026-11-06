@@ -10,7 +10,6 @@
         <OutputType>Exe</OutputType>
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
-        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
     <!--

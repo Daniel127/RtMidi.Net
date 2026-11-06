@@ -8,6 +8,7 @@ namespace RtMidi.Net.Tests.Native;
 /// A test that calls the native RtMidi library. It is skipped when the library
 /// is not next to the tests (see RtMidiTestLibrary in the project file).
 /// </summary>
+[AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
 public sealed class NativeFactAttribute : FactAttribute
 {
     public NativeFactAttribute([CallerFilePath] string? sourceFilePath = null, [CallerLineNumber] int sourceLineNumber = -1)

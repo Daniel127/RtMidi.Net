@@ -2,6 +2,7 @@ using RtMidi.Net.Clients;
 using RtMidi.Net.Enums;
 using RtMidi.Net.Events;
 using RtMidi.Net.InteropServices;
+using System.Runtime.InteropServices;
 
 namespace RtMidi.Net.Tests.Native;
 
@@ -103,12 +104,10 @@ public class DummyApiTests
     public void Dispose_IsIdempotent()
     {
         var rtMidiIn = new RtMidiIn();
-        rtMidiIn.Dispose();
-        rtMidiIn.Dispose();
+        for (var i = 0; i < 2; i++) rtMidiIn.Dispose();
 
         var client = new MidiOutputClient();
-        client.Dispose();
-        client.Dispose();
+        for (var i = 0; i < 2; i++) client.Dispose();
     }
 
     [NativeFact]
@@ -158,7 +157,7 @@ public class DummyApiTests
     }
 
     [NativeFact]
-    public unsafe void InputClient_Event_IsRaisedFromTheNativeCallback()
+    public void InputClient_Event_IsRaisedFromTheNativeCallback()
     {
         using var client = new MidiInputClient();
         var received = new List<MidiMessageReceivedEventArgs>();
@@ -166,11 +165,7 @@ public class DummyApiTests
         client.ActivateMessageReceivedEvent();
 
         // Call the callback the way RtMidi does, with the user data registered for this client.
-        byte[] noteOn = [0x91, 64, 90];
-        fixed (byte* message = noteOn)
-        {
-            RtMidiIn.NativeCallback(0.5, message, (nuint)noteOn.Length, ((RtMidiIn)client.RtMidiClient).CallbackUserData);
-        }
+        InvokeNativeCallback(0.5, [0x91, 64, 90], ((RtMidiIn)client.RtMidiClient).CallbackUserData);
 
         var args = Assert.Single(received);
         Assert.Equal(new MidiMessageNote(MidiChannel.Channel02, new MidiNote(64), 90, MidiMessageType.NoteOn), args.Message);
@@ -181,19 +176,15 @@ public class DummyApiTests
     }
 
     [NativeFact]
-    public unsafe void InputClient_HandlerException_DoesNotEscapeToNativeCode()
+    public void InputClient_HandlerException_DoesNotEscapeToNativeCode()
     {
         using var client = new MidiInputClient();
         client.OnMessageReceived += (_, _) => throw new InvalidOperationException("handler failure");
         client.ActivateMessageReceivedEvent();
 
-        byte[] clock = [0xF8];
-        fixed (byte* message = clock)
-        {
-            // Would terminate the process if the exception crossed the native boundary.
-            RtMidiIn.NativeCallback(0, message, 1, ((RtMidiIn)client.RtMidiClient).CallbackUserData);
-            RtMidiIn.NativeCallback(0, message, 1, IntPtr.Zero);
-        }
+        // Would terminate the process if the exception crossed the native boundary.
+        InvokeNativeCallback(0, [0xF8], ((RtMidiIn)client.RtMidiClient).CallbackUserData);
+        InvokeNativeCallback(0, [0xF8], IntPtr.Zero);
     }
 
     [NativeFact]
@@ -207,5 +198,22 @@ public class DummyApiTests
         client.SendMessage([0xF8]);
         Assert.Throws<ArgumentNullException>(() => client.SendMessage((byte[])null!));
         Assert.Throws<ArgumentException>(() => client.SendMessage(new MidiMessage(MidiMessageType.NoteOn)));
+    }
+
+    /// <summary>
+    /// Calls the callback the way RtMidi does: with the message in native memory.
+    /// </summary>
+    private static void InvokeNativeCallback(double timestamp, byte[] message, IntPtr userData)
+    {
+        var buffer = Marshal.AllocHGlobal(message.Length);
+        try
+        {
+            Marshal.Copy(message, 0, buffer, message.Length);
+            RtMidiIn.OnNativeMessage(timestamp, buffer, (nuint)message.Length, userData);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
     }
 }

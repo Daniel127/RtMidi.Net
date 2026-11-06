@@ -6,6 +6,13 @@ public class MidiMessageConverterToBytesTests
 {
     private static readonly MidiNote MiddleC = new(60);
 
+    private static TheoryData<MidiMessage> Rows(MidiMessage[] messages)
+    {
+        var data = new TheoryData<MidiMessage>();
+        foreach (var message in messages) data.Add(new TheoryDataRow<MidiMessage>(message));
+        return data;
+    }
+
     public static TheoryData<MidiMessage, byte[]> Messages => new()
     {
         { new MidiMessageNote(MidiChannel.Channel01, MiddleC, 100, MidiMessageType.NoteOn), new byte[] { 0x90, 60, 100 } },
@@ -78,15 +85,15 @@ public class MidiMessageConverterToBytesTests
         Assert.Throws<ArgumentNullException>(() => MidiMessageConverter.ToBytes(null!));
     }
 
-    public static TheoryData<MidiMessage> MismatchedMessages => new(new MidiMessage[]
-    {
+    public static TheoryData<MidiMessage> MismatchedMessages => Rows(
+    [
         new MidiMessage(MidiMessageType.NoteOn),
         new MidiMessage(MidiMessageType.SystemExclusive),
         new MidiMessage(MidiMessageType.Unknown),
         new MidiMessageNote(MidiChannel.Channel01, MiddleC, 10, MidiMessageType.ControlChange),
         new MidiMessageControlChange(MidiChannel.Channel01, 1, 1, MidiMessageType.NoteOn),
         new MidiMessageSongSelect(1, MidiMessageType.SongPositionPointer),
-    });
+    ]);
 
     [Theory]
     [MemberData(nameof(MismatchedMessages))]
@@ -96,8 +103,8 @@ public class MidiMessageConverterToBytesTests
         Assert.Equal("message", exception.ParamName);
     }
 
-    public static TheoryData<MidiMessage> OutOfRangeMessages => new(new MidiMessage[]
-    {
+    public static TheoryData<MidiMessage> OutOfRangeMessages => Rows(
+    [
         new MidiMessageNote(MidiChannel.Channel01, MiddleC, 128, MidiMessageType.NoteOn),
         new MidiMessageNote((MidiChannel)16, MiddleC, 1, MidiMessageType.NoteOn),
         new MidiMessageControlChange(MidiChannel.Channel01, 200, 1),
@@ -108,7 +115,7 @@ public class MidiMessageConverterToBytesTests
         new MidiMessageSongSelect(0x80),
         new MidiMessageTimeCodeQuarterFrame(8, 0),
         new MidiMessageTimeCodeQuarterFrame(0, 16),
-    });
+    ]);
 
     [Theory]
     [MemberData(nameof(OutOfRangeMessages))]
