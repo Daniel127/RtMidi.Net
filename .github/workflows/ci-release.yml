@@ -198,7 +198,8 @@ jobs:
             lib/net8.0/RtMidi.Net.xml \
             lib/net10.0/RtMidi.Net.dll \
             lib/net10.0/RtMidi.Net.xml \
-            README.md; do
+            README.md \
+            icon.png; do
             unzip -l "$pkg" | grep -q " $f$" || { echo "::error::Missing $f in $pkg"; exit 1; }
           done
       - uses: actions/upload-artifact@v4
