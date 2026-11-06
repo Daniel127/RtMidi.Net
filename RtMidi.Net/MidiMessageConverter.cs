@@ -124,7 +124,8 @@ internal static class MidiMessageConverter
                 [(byte)songPosition.Type, Data(songPosition.Lsb), Data(songPosition.Msb)],
             MidiMessageSongSelect { Type: MidiMessageType.SongSelect } songSelect =>
                 [(byte)songSelect.Type, Data(songSelect.SongNumber)],
-            _ when IsSingleByteMessage(message.Type) => [(byte)message.Type],
+            // Only the base record: a derived one (e.g. a note) with a single-byte type is a mismatch.
+            _ when message.GetType() == typeof(MidiMessage) && IsSingleByteMessage(message.Type) => [(byte)message.Type],
             _ => throw new ArgumentException(
                 $"A {message.GetType().Name} with type {message.Type} can't be encoded.", nameof(message)),
         };

@@ -52,7 +52,11 @@ public record MidiMessagePitchBendChange(MidiChannel Channel, byte Lsb, byte Msb
     /// The channel. Kept for compatibility, use <see cref="Channel"/>.
     /// </summary>
     [Obsolete("Use Channel instead.")]
-    public MidiChannel Chanel => Channel;
+    public MidiChannel Chanel
+    {
+        get => Channel;
+        init => Channel = value;
+    }
 
     /// <summary>
     /// The 14-bit bend value: 0 to 16383, 8192 is the centre (no bend).

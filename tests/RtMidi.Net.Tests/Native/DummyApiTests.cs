@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using RtMidi.Net.Clients;
 using RtMidi.Net.Enums;
 using RtMidi.Net.Events;
@@ -177,7 +178,48 @@ public class DummyApiTests
         Assert.Equal(TimeSpan.FromSeconds(0.5), args.Timestamp);
 
         client.DeactivateMessageReceivedEvent();
+    }
+
+    [NativeFact]
+    public void InputClient_LateCallback_AfterCancelOrDispose_IsIgnored()
+    {
+        var client = new MidiInputClient();
+        var received = 0;
+        client.OnMessageReceived += (_, _) => received++;
+        client.ActivateMessageReceivedEvent();
+        var userData = ((RtMidiIn)client.RtMidiClient).CallbackUserData;
+        Assert.NotEqual(IntPtr.Zero, userData);
+
+        // RtMidi 6.0 does not wait for a running callback when it is cancelled or freed.
+        client.DeactivateMessageReceivedEvent();
+        InvokeNativeCallback(0, [0xF8], userData);
+        client.Dispose();
+        InvokeNativeCallback(0, [0xF8], userData);
+
+        Assert.Equal(0, received);
         Assert.Equal(IntPtr.Zero, ((RtMidiIn)client.RtMidiClient).CallbackUserData);
+    }
+
+    [NativeFact]
+    public void RtMidiIn_WithCallback_IsNotKeptAliveByTheRegistration()
+    {
+        var reference = CreateInputWithCallback();
+
+        for (var i = 0; i < 10 && reference.IsAlive; i++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+
+        Assert.False(reference.IsAlive);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static WeakReference CreateInputWithCallback()
+    {
+        var input = new RtMidiIn(MidiApi.RtMidiDummy, "Leak test");
+        input.SetCallback((_, _) => { });
+        return new WeakReference(input);
     }
 
     [NativeFact]

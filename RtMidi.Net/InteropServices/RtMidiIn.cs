@@ -1,4 +1,5 @@
 using RtMidi.Net.Enums;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
@@ -41,8 +42,18 @@ internal sealed class RtMidiIn : RtMidiBase
     private static readonly RtMidiNativeCallback NativeCallbackDelegate = OnNativeMessage;
     private static readonly IntPtr NativeCallbackPointer = Marshal.GetFunctionPointerForDelegate(NativeCallbackDelegate);
 
+    // RtMidi gets a token as userData instead of a GCHandle:
+    // - the registry holds weak references, so a registered callback does not keep an
+    //   undisposed instance (and its client and event subscribers) alive;
+    // - RtMidi 6.0 does not wait for a running callback when it is cancelled, so a late
+    //   callback may still arrive with an old userData. Tokens are never reused and an
+    //   unknown token is ignored, unlike a freed GCHandle, which could crash or reach
+    //   another object.
+    private static readonly ConcurrentDictionary<nint, WeakReference<RtMidiIn>> CallbackRegistry = new();
+    private static long _lastCallbackToken;
+
     private RtMidiMessageHandler? _handler;
-    private GCHandle _callbackHandle;
+    private nint _callbackToken;
     private readonly object _messageBufferLock = new();
     private byte[]? _messageBuffer;
 
@@ -90,12 +101,13 @@ internal sealed class RtMidiIn : RtMidiBase
     {
         ArgumentNullException.ThrowIfNull(handler);
         _handler = handler;
-        if (!_callbackHandle.IsAllocated)
+        if (_callbackToken == 0)
         {
-            _callbackHandle = GCHandle.Alloc(this);
+            _callbackToken = (nint)Interlocked.Increment(ref _lastCallbackToken);
+            CallbackRegistry[_callbackToken] = new WeakReference<RtMidiIn>(this);
         }
 
-        RtMidiInterop.rtmidi_in_set_callback(RtMidiPtr, NativeCallbackPointer, GCHandle.ToIntPtr(_callbackHandle));
+        RtMidiInterop.rtmidi_in_set_callback(RtMidiPtr, NativeCallbackPointer, _callbackToken);
         ThrowIfError();
     }
 
@@ -109,8 +121,9 @@ internal sealed class RtMidiIn : RtMidiBase
     public void CancelCallback()
     {
         RtMidiInterop.rtmidi_in_cancel_callback(RtMidiPtr);
+        // The token stays registered until the instance is released: a callback that
+        // was already running finds no handler and does nothing.
         _handler = null;
-        FreeCallbackHandle();
         ThrowIfError();
     }
 
@@ -168,7 +181,8 @@ internal sealed class RtMidiIn : RtMidiBase
         try
         {
             if (userData == IntPtr.Zero || message == IntPtr.Zero) return;
-            if (GCHandle.FromIntPtr(userData).Target is not RtMidiIn { _handler: { } handler }) return;
+            if (!CallbackRegistry.TryGetValue(userData, out var reference)) return;
+            if (!reference.TryGetTarget(out var instance) || instance._handler is not { } handler) return;
             var data = new byte[checked((int)size)];
             Marshal.Copy(message, data, 0, data.Length);
             handler(timestamp, data);
@@ -182,19 +196,21 @@ internal sealed class RtMidiIn : RtMidiBase
     /// <summary>
     /// The user data RtMidi passes to the callback (for tests).
     /// </summary>
-    internal IntPtr CallbackUserData => _callbackHandle.IsAllocated ? GCHandle.ToIntPtr(_callbackHandle) : IntPtr.Zero;
+    internal IntPtr CallbackUserData => _callbackToken;
 
-    private void FreeCallbackHandle()
+    private void UnregisterCallback()
     {
-        if (_callbackHandle.IsAllocated) _callbackHandle.Free();
+        if (_callbackToken == 0) return;
+        CallbackRegistry.TryRemove(_callbackToken, out _);
+        _callbackToken = 0;
     }
 
     /// <inheritdoc />
     protected override void ReleaseUnmanagedResources()
     {
-        // Freeing the native object stops its callback thread, so the handle can go after it.
+        // Freeing the native object stops its callback thread, so the token can go after it.
         RtMidiInterop.rtmidi_in_free(RtMidiPtr);
         _handler = null;
-        FreeCallbackHandle();
+        UnregisterCallback();
     }
 }

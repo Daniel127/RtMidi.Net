@@ -20,6 +20,8 @@ public class MidiMessagesTests
         var message = new MidiMessagePitchBendChange(MidiChannel.Channel09, 0, 0);
 #pragma warning disable CS0618 // kept for compatibility
         Assert.Equal(MidiChannel.Channel09, message.Chanel);
+        Assert.Equal(MidiChannel.Channel03, (message with { Chanel = MidiChannel.Channel03 }).Channel);
+        Assert.Equal(MidiChannel.Channel04, new MidiMessagePitchBendChange(MidiChannel.Channel01, 0, 0) { Chanel = MidiChannel.Channel04 }.Channel);
 #pragma warning restore CS0618
     }
 

@@ -93,6 +93,8 @@ public class MidiMessageConverterToBytesTests
         new MidiMessageNote(MidiChannel.Channel01, MiddleC, 10, MidiMessageType.ControlChange),
         new MidiMessageControlChange(MidiChannel.Channel01, 1, 1, MidiMessageType.NoteOn),
         new MidiMessageSongSelect(1, MidiMessageType.SongPositionPointer),
+        new MidiMessageNote(MidiChannel.Channel01, MiddleC, 10, MidiMessageType.SystemReset),
+        new MidiMessageControlChange(MidiChannel.Channel01, 1, 1, MidiMessageType.TimingClock),
     ]);
 
     [Theory]
