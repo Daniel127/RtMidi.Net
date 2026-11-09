@@ -68,11 +68,11 @@ Some software numbers octaves differently (middle C as ``C3`` in Yamaha or Ablet
 
 ```csharp
 var note = new MidiNote(60);
-note.GetName();                                       // "C4"
-note.GetName(useLatinName: true);                     // "Do4"
-note.GetName(useLatinName: true, middleCOctave: 3);   // "Do3"
-MidiNote.Parse("Bb3").Number;                         // 58 (also "A#3", "Sib3", "La#3")
-MidiNote.Parse("C3", middleCOctave: 3).Number;        // 60
+string a = note.GetName();                                      // "C4"
+string b = note.GetName(useLatinName: true);                    // "Do4"
+string c = note.GetName(useLatinName: true, middleCOctave: 3);  // "Do3"
+byte bFlat = MidiNote.Parse("Bb3").Number;                      // 58 (also "A#3", "Sib3", "La#3")
+byte middleC = MidiNote.Parse("C3", middleCOctave: 3).Number;   // 60
 ```
 
 > Changed in 2.0: before, ``MusicOctave`` and ``GetName`` numbered the octaves from MIDI note 0, so middle C was ``C5`` / ``Octave5``. ``MidiNote(MusicNote, MusicOctave)`` now gives a note one octave higher for the same enum value name (``Octave4`` was MIDI 48, now it is 60); MIDI note numbers and bytes are unchanged.

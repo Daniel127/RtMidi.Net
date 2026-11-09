@@ -153,32 +153,9 @@ public readonly struct MidiNote
         if (string.IsNullOrWhiteSpace(name)) return false;
         var text = name.AsSpan().Trim();
 
-        var pitchClass = -1;
-        foreach (var (noteName, value) in ParseNames)
-        {
-            if (!text.StartsWith(noteName, StringComparison.OrdinalIgnoreCase)) continue;
-            pitchClass = value;
-            text = text[noteName.Length..];
-            break;
-        }
-        if (pitchClass < 0) return false;
-
-        long accidental = 0;
-        while (!text.IsEmpty && text[0] is '#' or '♯' or 'b' or '♭')
-        {
-            accidental += text[0] is '#' or '♯' ? 1 : -1;
-            text = text[1..];
-        }
-
-        // Only an optional '-' and digits: no '+', spaces or other signs. With middle C between
-        // -10 and 10, every valid name has an octave of at most 2 digits; 3 leaves room for leading zeros.
-        var digits = text.StartsWith("-") ? text[1..] : text;
-        if (digits.IsEmpty || digits.Length > 3) return false;
-        foreach (var c in digits)
-        {
-            if (c is < '0' or > '9') return false;
-        }
-        var octave = int.Parse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture);
+        if (!TryReadPitchClass(ref text, out var pitchClass)) return false;
+        var accidental = ReadAccidentals(ref text);
+        if (!TryReadOctave(text, out var octave)) return false;
 
         // long: many accidentals cannot overflow.
         var number = ((long)octave - middleCOctave + MiddleCOctaveValue) * NotesPerOctave + pitchClass + accidental;
@@ -186,6 +163,55 @@ public readonly struct MidiNote
 
         note = new MidiNote((byte)number);
         return true;
+    }
+
+    /// <summary>
+    /// Reads the natural note at the start of <paramref name="text"/> (English or Latin) and removes it.
+    /// </summary>
+    private static bool TryReadPitchClass(ref ReadOnlySpan<char> text, out int pitchClass)
+    {
+        foreach (var (noteName, value) in ParseNames)
+        {
+            if (!text.StartsWith(noteName, StringComparison.OrdinalIgnoreCase)) continue;
+            pitchClass = value;
+            text = text[noteName.Length..];
+            return true;
+        }
+
+        pitchClass = -1;
+        return false;
+    }
+
+    /// <summary>
+    /// Reads the sharps (+1 each) and flats (-1 each) at the start of <paramref name="text"/> and removes them.
+    /// </summary>
+    private static long ReadAccidentals(ref ReadOnlySpan<char> text)
+    {
+        long accidental = 0;
+        while (!text.IsEmpty && text[0] is '#' or '♯' or 'b' or '♭')
+        {
+            accidental += text[0] is '#' or '♯' ? 1 : -1;
+            text = text[1..];
+        }
+
+        return accidental;
+    }
+
+    /// <summary>
+    /// Reads the octave: an optional '-' and digits only (no '+', spaces or other signs).
+    /// Leading zeros are allowed; a number too large for an int is not a valid octave.
+    /// </summary>
+    private static bool TryReadOctave(ReadOnlySpan<char> text, out int octave)
+    {
+        octave = 0;
+        var digits = text.StartsWith("-") ? text[1..] : text;
+        if (digits.IsEmpty) return false;
+        foreach (var c in digits)
+        {
+            if (c is < '0' or > '9') return false;
+        }
+
+        return int.TryParse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out octave);
     }
 
     private static void ValidateMiddleCOctave(int middleCOctave, [System.Runtime.CompilerServices.CallerArgumentExpression(nameof(middleCOctave))] string? paramName = null)

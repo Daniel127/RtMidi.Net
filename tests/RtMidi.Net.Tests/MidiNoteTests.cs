@@ -244,7 +244,9 @@ public class MidiNoteTests
     [InlineData("C-2")]
     [InlineData("G#9")]    // above MIDI note 127
     [InlineData("C10")]
-    [InlineData("C99999999999")]
+    [InlineData("C99999999999")]   // too large for an int
+    [InlineData("C-99999999999")]
+    [InlineData("C2147483647")]    // int.MaxValue: no overflow, just out of range
     [InlineData("Ut4")]
     public void Parse_Invalid_Throws(string name)
     {
@@ -278,6 +280,9 @@ public class MidiNoteTests
     {
         Assert.Equal(60, MidiNote.Parse("C04").Number);
         Assert.Equal(0, MidiNote.Parse("C-01").Number);
+        Assert.Equal(60, MidiNote.Parse("C0004").Number);
+        Assert.Equal(0, MidiNote.Parse("C-0001").Number);
+        Assert.Equal(60, MidiNote.Parse("C" + new string('0', 50) + "4").Number);
     }
 
     [Fact]
