@@ -93,19 +93,17 @@ public sealed class MidiInputClient : MidiClient
         {
             lock (_eventLock)
             {
-                var hadHandlers = _messageReceived is not null;
+                var previous = _messageReceived;
                 _messageReceived += value;
-                if (!hadHandlers && _messageReceived is not null)
+                if (ReferenceEquals(previous, _messageReceived)) return;
+                try
                 {
-                    try
-                    {
-                        _rtMidiInClient.SetCallback(InternalMessageReceived);
-                    }
-                    catch
-                    {
-                        _messageReceived = null;
-                        throw;
-                    }
+                    UpdateCallback();
+                }
+                catch
+                {
+                    _messageReceived = previous;
+                    throw;
                 }
             }
         }
@@ -114,7 +112,7 @@ public sealed class MidiInputClient : MidiClient
             lock (_eventLock)
             {
                 _messageReceived -= value;
-                if (_messageReceived is null) _rtMidiInClient.CancelCallback();
+                UpdateCallback();
             }
         }
     }
@@ -143,10 +141,22 @@ public sealed class MidiInputClient : MidiClient
         _rtMidiInClient.IgnoreTypes(_ignoreSysexMessages, _ignoreTimeMessages, _ignoreSenseMessages);
     }
 
-    private void InternalMessageReceived(double timestamp, ReadOnlySpan<byte> messageData)
+    // The native handler captures the current handlers, so a message already being delivered when
+    // the last handler is removed still reaches them instead of being lost (it can't go to the queue
+    // any more). Without handlers, new messages go to the queue.
+    private void UpdateCallback()
     {
-        var message = MidiMessageConverter.Parse(messageData);
-        _messageReceived?.Invoke(this, new MidiMessageReceivedEventArgs(message, TimeSpan.FromSeconds(timestamp)));
+        if (_messageReceived is not { } handlers)
+        {
+            _rtMidiInClient.CancelCallback();
+            return;
+        }
+
+        _rtMidiInClient.SetCallback((timestamp, messageData) =>
+        {
+            var message = MidiMessageConverter.Parse(messageData);
+            handlers(this, new MidiMessageReceivedEventArgs(message, TimeSpan.FromSeconds(timestamp)));
+        });
     }
 
     /// <summary>
