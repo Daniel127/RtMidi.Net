@@ -257,7 +257,7 @@ internal abstract class RtMidiBase : IDisposable
     /// <param name="api">The API</param>
     /// <returns>
     /// The long name
-    /// <para>If the API is unknown, this function will return the empty string.</para>
+    /// <para>If the API is unknown, this function returns "Unknown".</para>
     /// </returns>
     public static string GetApiDisplayName(MidiApi api)
     {

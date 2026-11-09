@@ -35,7 +35,7 @@ public static class MidiManager
     /// Display name of an API (e.g. "ALSA").
     /// </summary>
     /// <param name="api">The API.</param>
-    /// <returns>The name, or an empty string if the API is unknown.</returns>
+    /// <returns>The name, or "Unknown" if the API is unknown.</returns>
     public static string GetApiDisplayName(MidiApi api) => RtMidiBase.GetApiDisplayName(api);
 
     /// <summary>
