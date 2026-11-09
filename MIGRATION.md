@@ -1,6 +1,6 @@
 # Migrating from 1.x to 2.0
 
-Most code keeps working after a few renames. The change to watch is the octave numbering (step 3): it compiles
+Most code keeps working after a few renames. The change to watch is the octave numbering (step 4): it compiles
 without errors but plays notes one octave higher if you build notes from `MusicOctave` values.
 
 The full list of changes is in the [changelog](CHANGELOG.md).
@@ -15,7 +15,21 @@ The package now includes the native RtMidi library for Windows, Linux (including
 Remove any `rtmidi.dll`, `librtmidi.so` or `librtmidi.dylib` you copied into your project or output folder,
 so the one in the package is used. On Linux, ALSA (`libasound2`) must be installed, as before.
 
-## 3. Octaves: middle C is now C4
+## 3. One namespace
+
+Every public type is now in `RtMidi.Net`. Remove these usings; `using RtMidi.Net;` covers everything:
+
+```csharp
+using RtMidi.Net;
+using RtMidi.Net.Clients; // remove
+using RtMidi.Net.Enums;   // remove
+using RtMidi.Net.Events;  // remove
+```
+
+Fully qualified names change the same way, e.g. `RtMidi.Net.Enums.MidiDeviceType` is now
+`RtMidi.Net.MidiDeviceType`.
+
+## 4. Octaves: middle C is now C4
 
 Octaves follow scientific pitch notation: MIDI note 60 (middle C) is `C4`, and 69 (A440) is `A4`. In 1.x
 middle C was `C5`. MIDI note numbers are unchanged, so messages you receive or send as numbers are the same.
@@ -50,7 +64,7 @@ note.GetName(middleCOctave: 5); // "C5", as in 1.x
 note.GetName(middleCOctave: 3); // "C3", as in Yamaha or Ableton
 ```
 
-## 4. Renamed and removed members
+## 5. Renamed and removed members
 
 | 1.x | 2.0 |
 |:--|:--|
@@ -60,7 +74,7 @@ note.GetName(middleCOctave: 3); // "C3", as in Yamaha or Ableton
 | `input.DeactivateMessageReceivedEvent();` | `input.MessageReceived -= handler;` |
 | `catch (IndexOutOfRangeException)` around `MidiManager.GetDeviceInfo` | `catch (ArgumentOutOfRangeException)` |
 
-## 5. Receiving messages with the event
+## 6. Receiving messages with the event
 
 The event is active while it has handlers, so there is no separate step to turn it on. Subscribe before
 `Open` so no message goes to the queue in between:
@@ -83,7 +97,7 @@ input.MessageReceived -= OnMessage;
 While the event has no handlers, messages are queued and read with `TryGetMessage`, `GetMessage` or
 `GetMessageAsync`, as before.
 
-## 6. Polling for messages
+## 7. Polling for messages
 
 `GetMessage` and `GetMessageAsync` now return the time since the previous message, as reported by RtMidi.
 In 1.x they returned how long the call waited. If you need the waiting time, measure it with a `Stopwatch`.
@@ -91,7 +105,7 @@ In 1.x they returned how long the call waited. If you need the waiting time, mea
 The cancellation token of `GetMessageAsync` is optional, `GetMessage` accepts one too, and the new
 `TryGetMessage` returns immediately when the queue is empty.
 
-## 7. Message records
+## 8. Message records
 
 The records that can only have one type no longer take a `Type` argument. Remove it from constructor calls
 and positional patterns:
@@ -111,12 +125,12 @@ if (message is MidiMessageControlChange(var channel, var controller, var value))
 
 `MidiMessageUnknown` no longer takes a type either. To send raw bytes, use `SendMessage` with the bytes.
 
-## 8. Sending messages
+## 9. Sending messages
 
 `SendMessage` takes a `ReadOnlySpan<byte>` for raw bytes; a `byte[]` still works unchanged. Values that don't
 fit MIDI (for example a velocity of 200) now throw `ArgumentOutOfRangeException` instead of being sent wrong.
 
-## 9. Other changes that can affect your code
+## 10. Other changes that can affect your code
 
 - `MidiManager.GetAvailableDevices` returns `IReadOnlyList<MidiDeviceInfo>`. If you added or removed items,
   copy it first with `.ToList()`.

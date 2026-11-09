@@ -12,6 +12,8 @@ It has breaking changes: see the [migration guide](MIGRATION.md) to update from 
 ### Breaking changes
 
 - Targets .NET 8 and .NET 10 (was .NET 6 and .NET 7).
+- All public types are in the `RtMidi.Net` namespace: `RtMidi.Net.Clients`, `RtMidi.Net.Enums` and
+  `RtMidi.Net.Events` are gone, so one `using RtMidi.Net;` is enough.
 - Octaves follow scientific pitch notation: middle C (MIDI note 60) is `C4` / `MusicOctave.Octave4`
   (it was `C5` / `Octave5`). `MusicOctave` now goes from `OctaveMinus1` to `Octave9`; the MIDI note numbers
   are unchanged. `MidiNote.GetName` returns `C4` for note 60.

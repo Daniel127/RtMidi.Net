@@ -1,4 +1,3 @@
-using RtMidi.Net.Enums;
 
 namespace RtMidi.Net;
 
@@ -107,7 +106,7 @@ public record MidiMessagePitchBendChange(MidiChannel Channel, byte Lsb, byte Msb
 
 /// <summary>
 /// System Exclusive (SysEx): manufacturer-specific data. Only received when
-/// <see cref="Clients.MidiInputClient.IgnoreSysexMessages"/> is <see langword="false"/>.
+/// <see cref="MidiInputClient.IgnoreSysexMessages"/> is <see langword="false"/>.
 /// See https://www.recordingblogs.com/wiki/midi-system-exclusive-message
 /// </summary>
 /// <param name="Data">The whole message, from 0xF0 to 0xF7 included. It is sent as is.</param>
@@ -115,7 +114,7 @@ public record MidiMessageSystemExclusive(byte[] Data) : MidiMessage(MidiMessageT
 
 /// <summary>
 /// MIDI Time Code Quarter Frame. Eight of them, one per <paramref name="Piece"/>, make a complete time code.
-/// Only received when <see cref="Clients.MidiInputClient.IgnoreTimeMessages"/> is <see langword="false"/>.
+/// Only received when <see cref="MidiInputClient.IgnoreTimeMessages"/> is <see langword="false"/>.
 /// </summary>
 /// <param name="Piece">Which part of the time code this message carries (0-7):
 /// 0/1 frames, 2/3 seconds, 4/5 minutes, 6/7 hours and rate.</param>

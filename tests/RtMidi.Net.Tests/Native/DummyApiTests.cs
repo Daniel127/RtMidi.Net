@@ -1,7 +1,4 @@
 using System.Runtime.CompilerServices;
-using RtMidi.Net.Clients;
-using RtMidi.Net.Enums;
-using RtMidi.Net.Events;
 using RtMidi.Net.InteropServices;
 using System.Runtime.InteropServices;
 

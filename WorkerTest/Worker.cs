@@ -1,7 +1,4 @@
 using RtMidi.Net;
-using RtMidi.Net.Clients;
-using RtMidi.Net.Enums;
-using RtMidi.Net.Events;
 
 namespace WorkerTest;
 

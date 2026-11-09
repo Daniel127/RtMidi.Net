@@ -1,4 +1,3 @@
-using RtMidi.Net.Enums;
 using RtMidi.Net.InteropServices;
 
 namespace RtMidi.Net;

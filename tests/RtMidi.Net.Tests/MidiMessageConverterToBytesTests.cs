@@ -1,4 +1,3 @@
-using RtMidi.Net.Enums;
 
 namespace RtMidi.Net.Tests;
 

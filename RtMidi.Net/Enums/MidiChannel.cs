@@ -1,4 +1,4 @@
-namespace RtMidi.Net.Enums;
+namespace RtMidi.Net;
 
 /// <summary>
 /// MIDI channel. Channel01 is channel 1 in MIDI terms (value 0 in the status byte).

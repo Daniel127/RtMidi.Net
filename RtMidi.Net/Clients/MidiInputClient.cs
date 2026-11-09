@@ -1,8 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
-using RtMidi.Net.Events;
 using RtMidi.Net.InteropServices;
 
-namespace RtMidi.Net.Clients;
+namespace RtMidi.Net;
 
 /// <summary>
 /// Receives MIDI messages from an input port, through <see cref="MessageReceived"/> or by polling.

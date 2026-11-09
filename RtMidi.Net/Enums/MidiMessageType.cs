@@ -1,4 +1,4 @@
-namespace RtMidi.Net.Enums;
+namespace RtMidi.Net;
 
 /// <summary>
 /// Types of messages indicated in

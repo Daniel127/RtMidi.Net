@@ -1,4 +1,3 @@
-using RtMidi.Net.Enums;
 
 namespace RtMidi.Net.Tests;
 
@@ -44,7 +43,7 @@ public class MidiMessagesTests
     public void ReceivedEventArgs_KeepsMessageAndTimestamp()
     {
         var message = new MidiMessage(MidiMessageType.Start);
-        var args = new Events.MidiMessageReceivedEventArgs(message, TimeSpan.FromMilliseconds(5));
+        var args = new MidiMessageReceivedEventArgs(message, TimeSpan.FromMilliseconds(5));
 
         Assert.Same(message, args.Message);
         Assert.Equal(TimeSpan.FromMilliseconds(5), args.Timestamp);

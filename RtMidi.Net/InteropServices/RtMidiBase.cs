@@ -1,4 +1,3 @@
-using RtMidi.Net.Enums;
 using System.Runtime.InteropServices;
 using System.Text;
 

@@ -1,4 +1,4 @@
-namespace RtMidi.Net.Clients;
+namespace RtMidi.Net;
 
 /// <summary>
 /// Waits for a message from RtMidi's input queue, which can only be polled.

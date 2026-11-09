@@ -1,4 +1,4 @@
-namespace RtMidi.Net.Enums;
+namespace RtMidi.Net;
 
 /// <summary>
 /// MIDI backend used by RtMidi.

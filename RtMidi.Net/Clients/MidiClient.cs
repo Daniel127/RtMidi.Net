@@ -1,6 +1,6 @@
 using RtMidi.Net.InteropServices;
 
-namespace RtMidi.Net.Clients;
+namespace RtMidi.Net;
 
 /// <summary>
 /// Base of the MIDI input and output clients.

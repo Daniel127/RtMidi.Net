@@ -1,6 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using RtMidi.Net.Enums;
 
 namespace RtMidi.Net;
 

@@ -1,10 +1,9 @@
-using RtMidi.Net.Enums;
 
 namespace RtMidi.Net;
 
 /// <summary>
-/// A MIDI port found by <see cref="MidiManager"/>. Pass it to <see cref="Clients.MidiInputClient(MidiDeviceInfo)"/>
-/// or <see cref="Clients.MidiOutputClient(MidiDeviceInfo)"/> to open it.
+/// A MIDI port found by <see cref="MidiManager"/>. Pass it to <see cref="MidiInputClient(MidiDeviceInfo)"/>
+/// or <see cref="MidiOutputClient(MidiDeviceInfo)"/> to open it.
 /// </summary>
 /// <remarks>
 /// It is a snapshot: port numbers can change when devices are connected or disconnected, so look the

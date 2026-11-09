@@ -1,8 +1,5 @@
 using System.Collections.Concurrent;
 using RtMidi.Net;
-using RtMidi.Net.Clients;
-using RtMidi.Net.Enums;
-using RtMidi.Net.Events;
 
 namespace RtMidi.Net.PackageTest;
 

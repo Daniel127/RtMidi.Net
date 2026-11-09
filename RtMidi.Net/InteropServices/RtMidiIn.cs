@@ -1,4 +1,3 @@
-using RtMidi.Net.Enums;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
