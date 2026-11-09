@@ -21,7 +21,7 @@ namespace RtMidi.Net;
 /// byte bFlat = MidiNote.Parse("Bb3").Number;                 // 58
 /// </code>
 /// </example>
-public readonly struct MidiNote
+public readonly struct MidiNote : IEquatable<MidiNote>, IComparable<MidiNote>
 {
     /// <summary>
     /// The octave number of middle C (MIDI note 60) in scientific pitch notation, the default for
@@ -69,9 +69,9 @@ public readonly struct MidiNote
     public MusicOctave Octave { get; }
 
     /// <summary>
-    /// The MIDI note number (0-127).
+    /// The MIDI note number (0-127), the data byte sent in note messages.
     /// </summary>
-    public byte Number => GetByteRepresentation();
+    public byte Number => (byte)((byte)Note + (byte)Octave * NotesPerOctave);
 
     /// <summary>
     /// Creates the note from its MIDI note number.
@@ -100,15 +100,6 @@ public readonly struct MidiNote
             throw new ArgumentOutOfRangeException(nameof(octave), octave, $"{note} in {octave} is above MIDI note 127 (G9).");
         Note = note;
         Octave = octave;
-    }
-
-    /// <summary>
-    /// Returns the MIDI note number (0-127), the data byte sent in note messages. Same as <see cref="Number"/>.
-    /// </summary>
-    /// <returns>The MIDI note number.</returns>
-    public byte GetByteRepresentation()
-    {
-        return (byte)((byte)Note + (byte)Octave * NotesPerOctave);
     }
 
     /// <summary>
@@ -242,4 +233,60 @@ public readonly struct MidiNote
     /// </summary>
     /// <returns>The note name.</returns>
     public override string ToString() => GetName();
+
+    /// <summary>
+    /// Whether both notes have the same MIDI note number.
+    /// </summary>
+    /// <param name="other">The note to compare with.</param>
+    /// <returns>true if they are the same note.</returns>
+    public bool Equals(MidiNote other) => Number == other.Number;
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is MidiNote other && Equals(other);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => Number;
+
+    /// <summary>
+    /// Compares the pitch of two notes (their MIDI note numbers).
+    /// </summary>
+    /// <param name="other">The note to compare with.</param>
+    /// <returns>Less than zero if this note is lower, zero if equal, greater than zero if higher.</returns>
+    public int CompareTo(MidiNote other) => Number.CompareTo(other.Number);
+
+    /// <summary>Whether both notes have the same MIDI note number.</summary>
+    /// <param name="left">The first note.</param>
+    /// <param name="right">The second note.</param>
+    /// <returns>true if they are the same note.</returns>
+    public static bool operator ==(MidiNote left, MidiNote right) => left.Equals(right);
+
+    /// <summary>Whether the notes have different MIDI note numbers.</summary>
+    /// <param name="left">The first note.</param>
+    /// <param name="right">The second note.</param>
+    /// <returns>true if they are different notes.</returns>
+    public static bool operator !=(MidiNote left, MidiNote right) => !left.Equals(right);
+
+    /// <summary>Whether <paramref name="left"/> is lower than <paramref name="right"/>.</summary>
+    /// <param name="left">The first note.</param>
+    /// <param name="right">The second note.</param>
+    /// <returns>true if the first note is lower.</returns>
+    public static bool operator <(MidiNote left, MidiNote right) => left.CompareTo(right) < 0;
+
+    /// <summary>Whether <paramref name="left"/> is lower than or the same as <paramref name="right"/>.</summary>
+    /// <param name="left">The first note.</param>
+    /// <param name="right">The second note.</param>
+    /// <returns>true if the first note is not higher.</returns>
+    public static bool operator <=(MidiNote left, MidiNote right) => left.CompareTo(right) <= 0;
+
+    /// <summary>Whether <paramref name="left"/> is higher than <paramref name="right"/>.</summary>
+    /// <param name="left">The first note.</param>
+    /// <param name="right">The second note.</param>
+    /// <returns>true if the first note is higher.</returns>
+    public static bool operator >(MidiNote left, MidiNote right) => left.CompareTo(right) > 0;
+
+    /// <summary>Whether <paramref name="left"/> is higher than or the same as <paramref name="right"/>.</summary>
+    /// <param name="left">The first note.</param>
+    /// <param name="right">The second note.</param>
+    /// <returns>true if the first note is not lower.</returns>
+    public static bool operator >=(MidiNote left, MidiNote right) => left.CompareTo(right) >= 0;
 }

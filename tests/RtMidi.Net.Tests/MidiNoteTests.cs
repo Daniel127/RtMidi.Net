@@ -29,8 +29,8 @@ public class MidiNoteTests
         for (byte number = 0; number <= 127; number++)
         {
             var midiNote = new MidiNote(number);
-            Assert.Equal(number, midiNote.GetByteRepresentation());
-            Assert.Equal(number, new MidiNote(midiNote.Note, midiNote.Octave).GetByteRepresentation());
+            Assert.Equal(number, midiNote.Number);
+            Assert.Equal(number, new MidiNote(midiNote.Note, midiNote.Octave).Number);
         }
     }
 
@@ -297,5 +297,28 @@ public class MidiNoteTests
                 Assert.Equal(note, MidiNote.Parse(note.GetName(useLatinName: true, middleCOctave: middleCOctave), middleCOctave));
             }
         }
+    }
+
+    [Fact]
+    public void Equality_And_Comparison_FollowTheNoteNumber()
+    {
+        var middleC = new MidiNote(60);
+        var sameNote = new MidiNote(MusicNote.Do, MusicOctave.Octave4);
+        var a4 = MidiNote.Parse("A4");
+
+        Assert.Equal(middleC, sameNote);
+        Assert.True(middleC == sameNote);
+        Assert.False(middleC != sameNote);
+        Assert.True(middleC.Equals((object)sameNote));
+        Assert.False(middleC.Equals((object)60));
+        Assert.Equal(middleC.GetHashCode(), sameNote.GetHashCode());
+
+        Assert.True(middleC < a4);
+        Assert.True(middleC <= sameNote);
+        Assert.True(a4 > middleC);
+        Assert.True(a4 >= middleC);
+        Assert.False(a4 < middleC);
+        Assert.True(middleC.CompareTo(a4) < 0);
+        Assert.Equal([middleC, a4], new[] { a4, middleC }.Order());
     }
 }

@@ -37,7 +37,7 @@ public class MidiMessageConverterParseTests
 
         Assert.Equal(MidiMessageType.PolyphonicKeyPressure, message.Type);
         Assert.Equal(MidiChannel.Channel04, message.Channel);
-        Assert.Equal(127, message.Note.GetByteRepresentation());
+        Assert.Equal(127, message.Note.Number);
         Assert.Equal(55, message.Pressure);
     }
 

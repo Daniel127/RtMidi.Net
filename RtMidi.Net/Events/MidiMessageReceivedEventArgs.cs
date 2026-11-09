@@ -1,9 +1,9 @@
 namespace RtMidi.Net.Events;
 
 /// <summary>
-/// Data of <see cref="Clients.MidiInputClient.OnMessageReceived"/>.
+/// Data of <see cref="Clients.MidiInputClient.MessageReceived"/>.
 /// </summary>
-public class MidiMessageReceivedEventArgs : EventArgs
+public sealed class MidiMessageReceivedEventArgs : EventArgs
 {
     /// <summary>
     /// The decoded message.

@@ -14,17 +14,6 @@ public class MidiMessagesTests
         Assert.Equal(expected, new MidiMessagePitchBendChange(MidiChannel.Channel01, lsb, msb).Value);
     }
 
-    [Fact]
-    public void PitchBend_ObsoleteChanel_ReturnsChannel()
-    {
-        var message = new MidiMessagePitchBendChange(MidiChannel.Channel09, 0, 0);
-#pragma warning disable CS0618 // kept for compatibility
-        Assert.Equal(MidiChannel.Channel09, message.Chanel);
-        Assert.Equal(MidiChannel.Channel03, (message with { Chanel = MidiChannel.Channel03 }).Channel);
-        Assert.Equal(MidiChannel.Channel04, new MidiMessagePitchBendChange(MidiChannel.Channel01, 0, 0) { Chanel = MidiChannel.Channel04 }.Channel);
-#pragma warning restore CS0618
-    }
-
     [Theory]
     [InlineData(0x00, 0x00, 0)]
     [InlineData(0x7F, 0x00, 127)]

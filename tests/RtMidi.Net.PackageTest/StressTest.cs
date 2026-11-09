@@ -8,7 +8,7 @@ namespace RtMidi.Net.PackageTest;
 
 /// <summary>
 /// Sends Note On/Off in a loop through a virtual port while input clients connected
-/// to it turn the event on and off, poll, close and are disposed in every state.
+/// to it subscribe to the event and unsubscribe, poll, close and are disposed in every state.
 /// Fails on a crash, an exception or a message that was not sent.
 /// </summary>
 /// <remarks>
@@ -98,22 +98,23 @@ internal sealed class StressTest
     private void RunClient(MidiDeviceInfo source, long client, CancellationToken stop)
     {
         using var input = new MidiInputClient(source);
-        input.OnMessageReceived += OnMessage;
-        if (client % 2 == 0) input.ActivateMessageReceivedEvent(); // before or after opening
+        var subscribed = client % 2 == 0;
+        if (subscribed) input.MessageReceived += OnMessage; // before or after opening
         input.Open();
 
         var cycles = 50 + client * 37 % 250;
         for (var i = 0; i < cycles && !stop.IsCancellationRequested; i++)
         {
-            input.ActivateMessageReceivedEvent();
+            if (!subscribed) input.MessageReceived += OnMessage;
             if (i % 4 == 0) Thread.Sleep(1);
-            input.DeactivateMessageReceivedEvent();
+            input.MessageReceived -= OnMessage;
+            subscribed = false;
             _toggles++;
             Poll(input);
         }
 
         // Disposed with the event on, after closing, or with the event off.
-        if (client % 3 == 0) input.ActivateMessageReceivedEvent();
+        if (client % 3 == 0) input.MessageReceived += OnMessage;
         else if (client % 3 == 1) input.Close();
     }
 
@@ -136,7 +137,7 @@ internal sealed class StressTest
     private void Check(MidiMessage message)
     {
         if (message is not MidiMessageNote { Type: MidiMessageType.NoteOn or MidiMessageType.NoteOff } note
-            || note.Note.GetByteRepresentation() != NoteNumber)
+            || note.Note.Number != NoteNumber)
             _errors.Enqueue($"unexpected message {message}");
     }
 

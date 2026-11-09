@@ -49,7 +49,7 @@ public static class MidiManager
     /// </summary>
     /// <returns>The input ports first, then the output ports.</returns>
     /// <exception cref="RtMidiException">The MIDI system could not be initialised.</exception>
-    public static List<MidiDeviceInfo> GetAvailableDevices()
+    public static IReadOnlyList<MidiDeviceInfo> GetAvailableDevices()
     {
         using var clientMidiIn = new RtMidiIn();
         using var clientMidiOut = new RtMidiOut();
@@ -62,7 +62,7 @@ public static class MidiManager
     /// <param name="api">The API, e.g. <see cref="MidiApi.LinuxAlsa"/>.</param>
     /// <returns>The input ports first, then the output ports.</returns>
     /// <exception cref="RtMidiException">The MIDI system could not be initialised.</exception>
-    public static List<MidiDeviceInfo> GetAvailableDevices(MidiApi api)
+    public static IReadOnlyList<MidiDeviceInfo> GetAvailableDevices(MidiApi api)
     {
         using var clientMidiIn = new RtMidiIn(api, $"MidiManager Client {api} Input");
         using var clientMidiOut = new RtMidiOut(api, $"MidiManager Client {api} Output");
@@ -96,11 +96,11 @@ public static class MidiManager
         return new MidiDeviceInfo(deviceName, deviceId, currentApi, deviceType);
     }
 
-    private static List<MidiDeviceInfo> GetAvailableDevicesIntern(RtMidiIn clientMidiIn, RtMidiOut clientMidiOut)
+    private static IReadOnlyList<MidiDeviceInfo> GetAvailableDevicesIntern(RtMidiIn clientMidiIn, RtMidiOut clientMidiOut)
     {
         var devicesIn = GetAvailableDevicesInfo(clientMidiIn, MidiDeviceType.Input);
         var devicesOut = GetAvailableDevicesInfo(clientMidiOut, MidiDeviceType.Output);
-        return devicesIn.Union(devicesOut).ToList();
+        return [.. devicesIn, .. devicesOut];
 
         static IEnumerable<MidiDeviceInfo> GetAvailableDevicesInfo(RtMidiBase clientMidi,
             MidiDeviceType deviceType)

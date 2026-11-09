@@ -48,9 +48,9 @@ internal sealed class RtMidiOut : RtMidiBase
     /// <remarks>An exception is thrown if an error occurs during output or an
     /// output connection was not previously established.</remarks>
     /// <param name="message">Message to send</param>
-    public void SendMessage(byte[] message)
+    public void SendMessage(ReadOnlySpan<byte> message)
     {
-        if (message.Length == 0) throw new ArgumentException("The message is empty.", nameof(message));
+        if (message.IsEmpty) throw new ArgumentException("The message is empty.", nameof(message));
 
         RtMidiInterop.rtmidi_out_send_message(RtMidiPtr, message, message.Length);
         ThrowIfError();

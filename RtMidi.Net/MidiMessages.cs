@@ -32,8 +32,7 @@ public record MidiMessage(MidiMessageType Type);
 /// Sending it sends <paramref name="MessageData"/> unchanged.
 /// </summary>
 /// <param name="MessageData">The raw bytes of the message, as received.</param>
-/// <param name="Type">Always <see cref="MidiMessageType.Unknown"/> for received messages.</param>
-public record MidiMessageUnknown(byte[] MessageData, MidiMessageType Type = MidiMessageType.Unknown) : MidiMessage(Type);
+public record MidiMessageUnknown(byte[] MessageData) : MidiMessage(MidiMessageType.Unknown);
 
 /// <summary>
 /// Base of the channel messages that refer to a note: <see cref="MidiMessageNote"/> and <see cref="MidiMessageNoteAfterTouch"/>.
@@ -68,8 +67,7 @@ public record MidiMessageNote(MidiChannel Channel, MidiNote Note, byte Velocity,
 /// <param name="Channel">The MIDI channel.</param>
 /// <param name="Note">The held note.</param>
 /// <param name="Pressure">The pressure on the key, 0 to 127.</param>
-/// <param name="Type">The message type; <see cref="MidiMessageType.PolyphonicKeyPressure"/>.</param>
-public record MidiMessageNoteAfterTouch(MidiChannel Channel, MidiNote Note, byte Pressure, MidiMessageType Type = MidiMessageType.PolyphonicKeyPressure) : MidiMessageNoteBase(Channel, Note, Type);
+public record MidiMessageNoteAfterTouch(MidiChannel Channel, MidiNote Note, byte Pressure) : MidiMessageNoteBase(Channel, Note, MidiMessageType.PolyphonicKeyPressure);
 
 /// <summary>
 /// Control Change: a controller (knob, fader, pedal...) moved, or a channel mode message (controllers 120 to 127).
@@ -77,24 +75,21 @@ public record MidiMessageNoteAfterTouch(MidiChannel Channel, MidiNote Note, byte
 /// <param name="Channel">The MIDI channel.</param>
 /// <param name="ControlFunction">The controller number, 0 to 127 (e.g. 1 modulation wheel, 7 volume, 64 sustain pedal).</param>
 /// <param name="Value">The controller value, 0 to 127.</param>
-/// <param name="Type">The message type; <see cref="MidiMessageType.ControlChange"/>.</param>
-public record MidiMessageControlChange(MidiChannel Channel, byte ControlFunction, byte Value, MidiMessageType Type = MidiMessageType.ControlChange) : MidiMessage(Type);
+public record MidiMessageControlChange(MidiChannel Channel, byte ControlFunction, byte Value) : MidiMessage(MidiMessageType.ControlChange);
 
 /// <summary>
 /// Program Change: selects an instrument or preset.
 /// </summary>
 /// <param name="Channel">The MIDI channel.</param>
 /// <param name="Program">The program number, 0 to 127 (shown as 1 to 128 by many devices).</param>
-/// <param name="Type">The message type; <see cref="MidiMessageType.ProgramChange"/>.</param>
-public record MidiMessageProgramChange(MidiChannel Channel, byte Program, MidiMessageType Type = MidiMessageType.ProgramChange) : MidiMessage(Type);
+public record MidiMessageProgramChange(MidiChannel Channel, byte Program) : MidiMessage(MidiMessageType.ProgramChange);
 
 /// <summary>
 /// Channel Pressure: a single aftertouch value for the whole channel, for devices without per-key pressure.
 /// </summary>
 /// <param name="Channel">The MIDI channel.</param>
 /// <param name="Pressure">The pressure, 0 to 127.</param>
-/// <param name="Type">The message type; <see cref="MidiMessageType.ChannelPressure"/>.</param>
-public record MidiMessageChannelAfterTouch(MidiChannel Channel, byte Pressure, MidiMessageType Type = MidiMessageType.ChannelPressure) : MidiMessage(Type);
+public record MidiMessageChannelAfterTouch(MidiChannel Channel, byte Pressure) : MidiMessage(MidiMessageType.ChannelPressure);
 
 /// <summary>
 /// Pitch Bend Change, a 14-bit value split in two 7-bit bytes. Use <see cref="Value"/> for the combined value.
@@ -102,21 +97,8 @@ public record MidiMessageChannelAfterTouch(MidiChannel Channel, byte Pressure, M
 /// <param name="Channel">The MIDI channel.</param>
 /// <param name="Lsb">The low 7 bits of the bend value, 0 to 127.</param>
 /// <param name="Msb">The high 7 bits of the bend value, 0 to 127.</param>
-/// <param name="Type">The message type; <see cref="MidiMessageType.PitchBendChange"/>.</param>
-public record MidiMessagePitchBendChange(MidiChannel Channel, byte Lsb, byte Msb, MidiMessageType Type = MidiMessageType.PitchBendChange) : MidiMessage(Type)
+public record MidiMessagePitchBendChange(MidiChannel Channel, byte Lsb, byte Msb) : MidiMessage(MidiMessageType.PitchBendChange)
 {
-    /// <summary>
-    /// The channel. Kept for compatibility, use <see cref="Channel"/>.
-    /// </summary>
-#pragma warning disable S1133 // Kept on purpose for compatibility with the misspelled property.
-    [Obsolete("Use Channel instead.")]
-    public MidiChannel Chanel
-    {
-        get => Channel;
-        init => Channel = value;
-    }
-#pragma warning restore S1133
-
     /// <summary>
     /// The 14-bit bend value: 0 to 16383, 8192 is the centre (no bend).
     /// </summary>
@@ -129,8 +111,7 @@ public record MidiMessagePitchBendChange(MidiChannel Channel, byte Lsb, byte Msb
 /// See https://www.recordingblogs.com/wiki/midi-system-exclusive-message
 /// </summary>
 /// <param name="Data">The whole message, from 0xF0 to 0xF7 included. It is sent as is.</param>
-/// <param name="Type">The message type; <see cref="MidiMessageType.SystemExclusive"/>.</param>
-public record MidiMessageSystemExclusive(byte[] Data, MidiMessageType Type = MidiMessageType.SystemExclusive) : MidiMessage(Type);
+public record MidiMessageSystemExclusive(byte[] Data) : MidiMessage(MidiMessageType.SystemExclusive);
 
 /// <summary>
 /// MIDI Time Code Quarter Frame. Eight of them, one per <paramref name="Piece"/>, make a complete time code.
@@ -139,8 +120,7 @@ public record MidiMessageSystemExclusive(byte[] Data, MidiMessageType Type = Mid
 /// <param name="Piece">Which part of the time code this message carries (0-7):
 /// 0/1 frames, 2/3 seconds, 4/5 minutes, 6/7 hours and rate.</param>
 /// <param name="Value">The 4-bit value of that part (0-15).</param>
-/// <param name="Type">The message type; <see cref="MidiMessageType.TimeCodeQuarterFrame"/>.</param>
-public record MidiMessageTimeCodeQuarterFrame(byte Piece, byte Value, MidiMessageType Type = MidiMessageType.TimeCodeQuarterFrame) : MidiMessage(Type);
+public record MidiMessageTimeCodeQuarterFrame(byte Piece, byte Value) : MidiMessage(MidiMessageType.TimeCodeQuarterFrame);
 
 /// <summary>
 /// Song Position Pointer, a 14-bit value (in MIDI beats) split in two 7-bit bytes. Use <see cref="Position"/>
@@ -148,8 +128,7 @@ public record MidiMessageTimeCodeQuarterFrame(byte Piece, byte Value, MidiMessag
 /// </summary>
 /// <param name="Lsb">The low 7 bits of the position, 0 to 127.</param>
 /// <param name="Msb">The high 7 bits of the position, 0 to 127.</param>
-/// <param name="Type">The message type; <see cref="MidiMessageType.SongPositionPointer"/>.</param>
-public record MidiMessageSongPositionPointer(byte Lsb, byte Msb, MidiMessageType Type = MidiMessageType.SongPositionPointer) : MidiMessage(Type)
+public record MidiMessageSongPositionPointer(byte Lsb, byte Msb) : MidiMessage(MidiMessageType.SongPositionPointer)
 {
     /// <summary>
     /// The 14-bit position, in MIDI beats (sixteenth notes) since the start of the song.
@@ -161,5 +140,4 @@ public record MidiMessageSongPositionPointer(byte Lsb, byte Msb, MidiMessageType
 /// Song Select: chooses the song or sequence to play.
 /// </summary>
 /// <param name="SongNumber">The song number, 0 to 127.</param>
-/// <param name="Type">The message type; <see cref="MidiMessageType.SongSelect"/>.</param>
-public record MidiMessageSongSelect(byte SongNumber, MidiMessageType Type = MidiMessageType.SongSelect) : MidiMessage(Type);
+public record MidiMessageSongSelect(byte SongNumber) : MidiMessage(MidiMessageType.SongSelect);

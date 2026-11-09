@@ -10,7 +10,7 @@ namespace RtMidi.Net;
 /// It is a snapshot: port numbers can change when devices are connected or disconnected, so look the
 /// devices up again after a change.
 /// </remarks>
-public class MidiDeviceInfo
+public sealed record MidiDeviceInfo
 {
     /// <summary>
     /// Port name, as given by the operating system.

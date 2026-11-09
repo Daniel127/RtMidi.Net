@@ -106,9 +106,9 @@ internal static class MidiMessageConverter
         {
             MidiMessageUnknown unknown => unknown.MessageData.ToArray(),
             MidiMessageNote { Type: MidiMessageType.NoteOff or MidiMessageType.NoteOn } note =>
-                [Status(note.Type, note.Channel), Data(note.Note.GetByteRepresentation()), Data(note.Velocity)],
+                [Status(note.Type, note.Channel), Data(note.Note.Number), Data(note.Velocity)],
             MidiMessageNoteAfterTouch { Type: MidiMessageType.PolyphonicKeyPressure } afterTouch =>
-                [Status(afterTouch.Type, afterTouch.Channel), Data(afterTouch.Note.GetByteRepresentation()), Data(afterTouch.Pressure)],
+                [Status(afterTouch.Type, afterTouch.Channel), Data(afterTouch.Note.Number), Data(afterTouch.Pressure)],
             MidiMessageControlChange { Type: MidiMessageType.ControlChange } controlChange =>
                 [Status(controlChange.Type, controlChange.Channel), Data(controlChange.ControlFunction), Data(controlChange.Value)],
             MidiMessageProgramChange { Type: MidiMessageType.ProgramChange } programChange =>

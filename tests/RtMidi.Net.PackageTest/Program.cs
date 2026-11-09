@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using RtMidi.Net;
 using RtMidi.Net.Clients;
 using RtMidi.Net.Enums;
+using RtMidi.Net.Events;
 using RtMidi.Net.PackageTest;
 
 // Package test for RtMidi.Net: a short "real use" session on the current platform.
@@ -10,7 +11,7 @@ using RtMidi.Net.PackageTest;
 //   (no flags)  load the native library, print the RtMidi version and compiled APIs
 //   --devices   also initialise the MIDI backend and list the ports
 //   --loopback  open a virtual output port, connect a MidiInputClient to it, send
-//               Note On/Note Off and check both arrive through OnMessageReceived.
+//               Note On/Note Off and check both arrive through MessageReceived.
 //   --stress    send messages in a loop through a virtual port while input clients
 //               turn the event on and off, poll, close and are disposed, for the given
 //               time (default 10 s). Fails on a crash, an exception or a wrong message.
@@ -93,7 +94,7 @@ static async Task<int> RunLoopback()
     var received = new List<MidiMessage>();
     var gotBoth = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
     using var input = new MidiInputClient(source);
-    input.OnMessageReceived += (_, e) =>
+    EventHandler<MidiMessageReceivedEventArgs> onMessage = (_, e) =>
     {
         Console.WriteLine($"  received {e.Message} at {e.Timestamp.TotalMilliseconds:F1} ms");
         lock (received)
@@ -102,7 +103,7 @@ static async Task<int> RunLoopback()
             if (received.Count >= 2) gotBoth.TrySetResult();
         }
     };
-    input.ActivateMessageReceivedEvent();
+    input.MessageReceived += onMessage;
     input.Open();
     Console.WriteLine("  input client open, events active");
 
@@ -118,7 +119,7 @@ static async Task<int> RunLoopback()
     var finished = await Task.WhenAny(gotBoth.Task, Task.Delay(TimeSpan.FromSeconds(5)));
 
     // 5. Close everything.
-    input.DeactivateMessageReceivedEvent();
+    input.MessageReceived -= onMessage;
     input.Close();
     output.Close();
     Console.WriteLine("  closed input and output");
@@ -137,12 +138,12 @@ static async Task<int> RunLoopback()
 
 static string? CheckNoteOnOff(IReadOnlyList<MidiMessage> received, MidiNote note)
 {
-    var expected = note.GetByteRepresentation();
+    var expected = note.Number;
     if (received[0] is not MidiMessageNote { Type: MidiMessageType.NoteOn, Velocity: 100 } on
-        || on.Note.GetByteRepresentation() != expected)
+        || on.Note.Number != expected)
         return $"first message should be Note On {expected}/100, got {received[0]}";
     if (received[1] is not MidiMessageNote { Type: MidiMessageType.NoteOff } off
-        || off.Note.GetByteRepresentation() != expected)
+        || off.Note.Number != expected)
         return $"second message should be Note Off {expected}, got {received[1]}";
     return null;
 }

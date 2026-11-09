@@ -39,8 +39,7 @@ public class Worker : BackgroundService
             _midiInputClient = new MidiInputClient(device);
             if (UseEventHandler)
             {
-                _midiInputClient.OnMessageReceived += MidiClient_OnMessageReceived;
-                _midiInputClient.ActivateMessageReceivedEvent();
+                _midiInputClient.MessageReceived += MidiClient_MessageReceived;
             }
             _midiInputClient.Open();
         }
@@ -74,7 +73,7 @@ public class Worker : BackgroundService
         await base.StopAsync(cancellationToken);
     }
 
-    private void MidiClient_OnMessageReceived(object? sender, MidiMessageReceivedEventArgs args)
+    private void MidiClient_MessageReceived(object? sender, MidiMessageReceivedEventArgs args)
     {
         OnMessageReceived(args.Message);
     }
@@ -84,7 +83,7 @@ public class Worker : BackgroundService
         if (midiMessage is MidiMessageNote { Type: MidiMessageType.NoteOn or MidiMessageType.NoteOff } message)
         {
             const int offset = 21;
-            var note = message.Note.GetByteRepresentation() - offset;
+            var note = message.Note.Number - offset;
             _logger.LogInformation("{NoteName} - {MessageType}, Note number: {NoteNumber}", message.Note.GetName(), message.Type, note);
         }
         else
