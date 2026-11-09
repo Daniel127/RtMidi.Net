@@ -64,6 +64,15 @@ It has breaking changes: see the [migration guide](MIGRATION.md) to update from 
   `DamperPedal`, `ChannelVolume`, `AllNotesOff`), and `MidiMessageControlChange.ControlNumber`.
 - `MidiMessageTimeCodeQuarterFrame` for MIDI Time Code Quarter Frame messages (they threw
   `NotImplementedException`).
+- MIDI Time Code: `MidiTimeCode` (hours, minutes, seconds, frames and `MidiTimeCodeRate`, including 30 fps
+  drop-frame) with `AddFrames`, `ToQuarterFrames` and `ToFullMessage`, and
+  `MidiMessageSystemExclusive.TryGetTimeCode` to read a Full Message.
+- `MidiTimeCodeReader`, which assembles the time from Quarter Frame sequences (forward and reverse) and Full
+  Messages. It is experimental (`RTMIDI002`): its rules may change in a minor version.
+- System Exclusive helpers: `MidiManufacturerId` (one- and three-byte IDs), the universal header
+  (`MidiMessageSystemExclusive.ManufacturerId`, `IsUniversal`, `IsUniversalRealTime`, `DeviceId`, `SubId1`,
+  `SubId2`), the `IdentityRequest`, `GeneralMidiSystemOn` and `GeneralMidiSystemOff` factories, and
+  `TryGetIdentityReply`, which reads the answer as a `MidiIdentityReply`.
 - `MidiApi.WindowsMidiServices`, RtMidi's new Windows API (not compiled into the Windows library yet).
 - XML documentation for the whole public API, a symbol package (`.snupkg`) with Source Link, and a
   package icon.
@@ -79,6 +88,8 @@ It has breaking changes: see the [migration guide](MIGRATION.md) to update from 
   a handler can be garbage collected.
 - Using a client after `Dispose` throws `ObjectDisposedException` instead of reaching the freed native
   object. `Close`, `Dispose` and unsubscribing from `MessageReceived` still work after it.
+- `MidiMessageSystemExclusive` and `MidiMessageUnknown` compare their bytes for equality (they compared the
+  array references, so two identical messages were not equal).
 - Port names, the list of compiled APIs and opening a port without a name are read correctly from RtMidi.
 
 ## [1.3.0] - 2023-09-06

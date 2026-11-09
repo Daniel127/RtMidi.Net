@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 
 namespace RtMidi.Net;
 
@@ -6,9 +8,9 @@ namespace RtMidi.Net;
 /// the others use a derived record, so a received message is usually examined with pattern matching.
 /// </summary>
 /// <remarks>
-/// Messages are records: two messages with the same values are equal. Byte array properties
-/// (<see cref="MidiMessageUnknown.MessageData"/>, <see cref="MidiMessageSystemExclusive.Data"/>) are compared by
-/// reference, not by content.
+/// Messages are records: two messages with the same values are equal. The byte arrays of
+/// <see cref="MidiMessageUnknown.MessageData"/> and <see cref="MidiMessageSystemExclusive.Data"/> are compared by
+/// content.
 /// </remarks>
 /// <example>
 /// <code>
@@ -31,7 +33,25 @@ public record MidiMessage(MidiMessageType Type);
 /// Sending it sends <paramref name="MessageData"/> unchanged.
 /// </summary>
 /// <param name="MessageData">The raw bytes of the message, as received.</param>
-public record MidiMessageUnknown(byte[] MessageData) : MidiMessage(MidiMessageType.Unknown);
+public record MidiMessageUnknown(byte[] MessageData) : MidiMessage(MidiMessageType.Unknown)
+{
+    /// <summary>Compares the bytes of <see cref="MessageData"/>.</summary>
+    /// <param name="other">The other message.</param>
+    /// <returns><see langword="true"/> if both have the same bytes.</returns>
+    public virtual bool Equals(MidiMessageUnknown? other) =>
+        ReferenceEquals(this, other) ||
+        (other is not null && EqualityContract == other.EqualityContract &&
+         MessageData.AsSpan().SequenceEqual(other.MessageData));
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(EqualityContract);
+        hash.AddBytes(MessageData);
+        return hash.ToHashCode();
+    }
+}
 
 /// <summary>
 /// Base of the channel messages that refer to a note: <see cref="MidiMessageNote"/> and <see cref="MidiMessageNoteAfterTouch"/>.
@@ -112,12 +132,161 @@ public record MidiMessagePitchBendChange(MidiChannel Channel, byte Lsb, byte Msb
 }
 
 /// <summary>
-/// System Exclusive (SysEx): manufacturer-specific data. Only received when
+/// System Exclusive (SysEx): data whose format is defined by a manufacturer (<see cref="ManufacturerId"/>), or by the
+/// MIDI specification for the Universal System Exclusive messages (<see cref="IsUniversal"/>). Only received when
 /// <see cref="MidiInputClient.IgnoreSysexMessages"/> is <see langword="false"/>.
-/// See https://www.recordingblogs.com/wiki/midi-system-exclusive-message
 /// </summary>
+/// <remarks>
+/// Format: <c>F0 &lt;manufacturer ID&gt; ... F7</c>; universal messages are
+/// <c>F0 &lt;7E|7F&gt; &lt;device ID&gt; &lt;sub-ID#1&gt; &lt;sub-ID#2&gt; ... F7</c> (MIDI 1.0 Detailed Specification,
+/// System Exclusive Messages). The factories create the universal messages most devices understand:
+/// <see cref="IdentityRequest()"/>, <see cref="GeneralMidiSystemOn()"/> and <see cref="GeneralMidiSystemOff()"/>.
+/// </remarks>
 /// <param name="Data">The whole message, from 0xF0 to 0xF7 included. It is sent as is.</param>
-public record MidiMessageSystemExclusive(byte[] Data) : MidiMessage(MidiMessageType.SystemExclusive);
+public record MidiMessageSystemExclusive(byte[] Data) : MidiMessage(MidiMessageType.SystemExclusive)
+{
+    /// <summary>The device ID that addresses every device ("all call"), 7FH.</summary>
+    public const byte AllCallDeviceId = 0x7F;
+
+    private const byte Start = 0xF0;
+    private const byte End = 0xF7;
+    private const byte NonRealTime = 0x7E;
+    private const byte RealTime = 0x7F;
+
+    /// <summary>
+    /// The manufacturer ID after F0H, or <see langword="null"/> if the message is too short or malformed. For universal
+    /// messages it is <see cref="MidiManufacturerId.UniversalNonRealTime"/> or <see cref="MidiManufacturerId.UniversalRealTime"/>.
+    /// </summary>
+    public MidiManufacturerId? ManufacturerId =>
+        Data is [Start, ..] && MidiManufacturerId.TryRead(Data.AsSpan(1), out var id) ? id : null;
+
+    /// <summary>Whether it is a Universal System Exclusive message (ID 7EH or 7FH).</summary>
+    public bool IsUniversal => Data is [Start, NonRealTime or RealTime, ..];
+
+    /// <summary>Whether it is a Universal Real Time message (ID 7FH), such as the MTC Full Message.</summary>
+    public bool IsUniversalRealTime => Data is [Start, RealTime, ..];
+
+    /// <summary>The device ID of a universal message (7FH addresses every device), or <see langword="null"/>.</summary>
+    public byte? DeviceId => UniversalByte(2);
+
+    /// <summary>The sub-ID#1 of a universal message (its category, e.g. 06H General Information), or <see langword="null"/>.</summary>
+    public byte? SubId1 => UniversalByte(3);
+
+    /// <summary>The sub-ID#2 of a universal message (the message in its category), or <see langword="null"/>.</summary>
+    public byte? SubId2 => UniversalByte(4);
+
+    /// <summary>
+    /// Identity Request to every device: <c>F0 7E 7F 06 01 F7</c>. Devices that support it answer with an Identity Reply
+    /// (see <see cref="TryGetIdentityReply"/>).
+    /// </summary>
+    /// <returns>The message.</returns>
+    public static MidiMessageSystemExclusive IdentityRequest() => IdentityRequest(AllCallDeviceId);
+
+    /// <summary>
+    /// Identity Request: <c>F0 7E &lt;device ID&gt; 06 01 F7</c>.
+    /// </summary>
+    /// <param name="deviceId">The device to ask, 0 to 127; 7FH asks every device.</param>
+    /// <returns>The message.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="deviceId"/> is above 127.</exception>
+    public static MidiMessageSystemExclusive IdentityRequest(byte deviceId) => Universal(NonRealTime, deviceId, 0x06, 0x01);
+
+    /// <summary>
+    /// Turn General MIDI System On, to every device: <c>F0 7E 7F 09 01 F7</c>. A General MIDI device resets to its
+    /// General MIDI configuration.
+    /// </summary>
+    /// <returns>The message.</returns>
+    public static MidiMessageSystemExclusive GeneralMidiSystemOn() => GeneralMidiSystemOn(AllCallDeviceId);
+
+    /// <summary>
+    /// Turn General MIDI System On: <c>F0 7E &lt;device ID&gt; 09 01 F7</c>.
+    /// </summary>
+    /// <param name="deviceId">The device, 0 to 127; 7FH (recommended) addresses every device.</param>
+    /// <returns>The message.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="deviceId"/> is above 127.</exception>
+    public static MidiMessageSystemExclusive GeneralMidiSystemOn(byte deviceId) => Universal(NonRealTime, deviceId, 0x09, 0x01);
+
+    /// <summary>
+    /// Turn General MIDI System Off, to every device: <c>F0 7E 7F 09 02 F7</c>.
+    /// </summary>
+    /// <returns>The message.</returns>
+    public static MidiMessageSystemExclusive GeneralMidiSystemOff() => GeneralMidiSystemOff(AllCallDeviceId);
+
+    /// <summary>
+    /// Turn General MIDI System Off: <c>F0 7E &lt;device ID&gt; 09 02 F7</c>.
+    /// </summary>
+    /// <param name="deviceId">The device, 0 to 127; 7FH (recommended) addresses every device.</param>
+    /// <returns>The message.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="deviceId"/> is above 127.</exception>
+    public static MidiMessageSystemExclusive GeneralMidiSystemOff(byte deviceId) => Universal(NonRealTime, deviceId, 0x09, 0x02);
+
+    /// <summary>
+    /// Reads an Identity Reply: <c>F0 7E &lt;device ID&gt; 06 02 mm ff ff dd dd ss ss ss ss F7</c>, where the manufacturer
+    /// ID <c>mm</c> has one or three bytes.
+    /// </summary>
+    /// <param name="reply">The reply, or <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> if the message is an Identity Reply.</returns>
+    public bool TryGetIdentityReply([NotNullWhen(true)] out MidiIdentityReply? reply)
+    {
+        reply = null;
+        if (Data is not [Start, NonRealTime, var deviceId, 0x06, 0x02, ..] ||
+            !MidiManufacturerId.TryRead(Data.AsSpan(5), out var manufacturer))
+        {
+            return false;
+        }
+
+        var rest = Data.AsSpan(5 + manufacturer.Length);
+        if (rest.Length != 9 || rest[8] != End) return false;
+        foreach (var value in rest[..8])
+        {
+            if (value > 0x7F) return false;
+        }
+
+        reply = new MidiIdentityReply(deviceId, manufacturer, rest[0] | (rest[1] << 7), rest[2] | (rest[3] << 7),
+            ((uint)rest[4] << 24) | ((uint)rest[5] << 16) | ((uint)rest[6] << 8) | rest[7]);
+        return true;
+    }
+
+    /// <summary>
+    /// Reads an MTC Full Message: <c>F0 7F &lt;device ID&gt; 01 01 hr mn sc fr F7</c>.
+    /// </summary>
+    /// <param name="timeCode">The time, or the default value.</param>
+    /// <returns><see langword="true"/> if the message is a valid MTC Full Message.</returns>
+    public bool TryGetTimeCode(out MidiTimeCode timeCode)
+    {
+        if (Data is [Start, RealTime, _, 0x01, 0x01, var hours, var minutes, var seconds, var frames, End])
+        {
+            return MidiTimeCode.TryCreate(hours, minutes, seconds, frames, out timeCode);
+        }
+
+        timeCode = default;
+        return false;
+    }
+
+    /// <summary>Compares the bytes of <see cref="Data"/>.</summary>
+    /// <param name="other">The other message.</param>
+    /// <returns><see langword="true"/> if both have the same bytes.</returns>
+    public virtual bool Equals(MidiMessageSystemExclusive? other) =>
+        ReferenceEquals(this, other) ||
+        (other is not null && EqualityContract == other.EqualityContract && Data.AsSpan().SequenceEqual(other.Data));
+
+    /// <inheritdoc />
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(EqualityContract);
+        hash.AddBytes(Data);
+        return hash.ToHashCode();
+    }
+
+    private byte? UniversalByte(int index) =>
+        IsUniversal && Data.Length > index && Data[index] <= 0x7F ? Data[index] : null;
+
+    private static MidiMessageSystemExclusive Universal(byte id, byte deviceId, byte subId1, byte subId2)
+    {
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(deviceId, (byte)0x7F);
+        return new MidiMessageSystemExclusive([Start, id, deviceId, subId1, subId2, End]);
+    }
+}
 
 /// <summary>
 /// MIDI Time Code Quarter Frame. Eight of them, one per <paramref name="Piece"/>, make a complete time code.
