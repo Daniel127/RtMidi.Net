@@ -62,6 +62,10 @@ It has breaking changes: see the [migration guide](MIGRATION.md) to update from 
   number.
 - `MidiControlFunction`, the Control Change controllers named as in the MIDI 1.0 specification table (e.g.
   `DamperPedal`, `ChannelVolume`, `AllNotesOff`), and `MidiMessageControlChange.ControlNumber`.
+- Registered and non-registered parameters (RPN/NRPN) and 14-bit controllers: `MidiRegisteredParameter` (the
+  registered parameters of the MIDI 1.0 table, e.g. `PitchBendSensitivity`), `MidiParameterMessages`, which builds
+  the Control Change sequences that set them, and the experimental `MidiControllerDecoder`, which assembles them from
+  received Control Changes following the MIDI 1.0 specification, RP-015 and RP-018 (diagnostic `RTMIDI001`).
 - `MidiMessageTimeCodeQuarterFrame` for MIDI Time Code Quarter Frame messages (they threw
   `NotImplementedException`).
 - `MidiApi.WindowsMidiServices`, RtMidi's new Windows API (not compiled into the Windows library yet).

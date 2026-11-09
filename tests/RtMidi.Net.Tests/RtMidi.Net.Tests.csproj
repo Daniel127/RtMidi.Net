@@ -10,6 +10,8 @@
         <OutputType>Exe</OutputType>
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
+        <!-- The tests cover the experimental controller decoder. -->
+        <NoWarn>$(NoWarn);RTMIDI001</NoWarn>
     </PropertyGroup>
 
     <!--
