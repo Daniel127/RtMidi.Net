@@ -2,6 +2,17 @@
 
 Issues and pull requests are welcome.
 
+## Branches
+
+The repository follows Gitflow:
+
+- `develop` is the integration branch. Branch from it (`feature/<name>` or `fix/<name>`) and open pull requests against it.
+- `release/vX.Y.Z` is created from `develop` when a version is ready. Only stabilization fixes go there. It is merged into `main` through a pull request, and that merge commit is tagged `vX.Y.Z`, which publishes the package to nuget.org. `main` is then merged back into `develop`.
+- `main` holds released versions only.
+- An urgent fix for a released version goes in `hotfix/vX.Y.Z`, branched from `main` and merged into both `main` and `develop`.
+
+Pre-releases (`vX.Y.Z-preview.N`) are tagged on the release branch; any `v*` tag publishes.
+
 ## Getting the code
 
 RtMidi is a git submodule in `external/rtmidi`, pinned to the version this wrapper supports. Clone with:
