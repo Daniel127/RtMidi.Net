@@ -9,6 +9,7 @@ public class RtMidiException : Exception
     /// <summary>
     /// Creates the exception with the error text.
     /// </summary>
+    /// <param name="message">The error text, usually the one reported by RtMidi.</param>
     public RtMidiException(string message) : base(message)
     {
     }

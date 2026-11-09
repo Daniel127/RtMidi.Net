@@ -27,6 +27,8 @@ To build the Linux library on your machine, run `.github/scripts/build-rtmidi-li
 
 You need the .NET 10 SDK (see `global.json`); it builds the .NET 8 and .NET 10 targets.
 
+Every public type and member needs XML documentation (it is shown in IntelliSense and on nuget.org). Locally, missing or broken docs are only warnings, so you can write them once the code works; in CI they are errors (CS1591 and related), so a pull request needs them.
+
 ## Unit tests
 
 [`tests/RtMidi.Net.Tests`](tests/RtMidi.Net.Tests) covers message parsing and encoding, notes and the input polling without any MIDI device:

@@ -5,6 +5,10 @@ namespace RtMidi.Net.Clients;
 /// <summary>
 /// Base of the MIDI input and output clients.
 /// </summary>
+/// <remarks>
+/// Each client owns a native RtMidi object, so dispose it when done (this also closes the port).
+/// A client can be opened, closed and opened again.
+/// </remarks>
 public abstract class MidiClient : IDisposable
 {
     private readonly MidiDeviceInfo? _deviceInfo;
@@ -27,6 +31,7 @@ public abstract class MidiClient : IDisposable
     /// Opens the device given in the constructor. Does nothing if it is already open.
     /// </summary>
     /// <exception cref="InvalidOperationException">The client was created without a device.</exception>
+    /// <exception cref="RtMidiException">The port could not be opened (e.g. it was disconnected).</exception>
     public void Open()
     {
         if (RtMidiClient.IsPortOpen) return;
@@ -40,6 +45,8 @@ public abstract class MidiClient : IDisposable
     /// this process) can connect to. Supported by CoreMIDI (macOS), ALSA and JACK;
     /// Windows MultiMedia does not support virtual ports.
     /// </summary>
+    /// <param name="virtualPortName">The name other applications see.</param>
+    /// <exception cref="RtMidiException">The API does not support virtual ports, or the port could not be created.</exception>
     public void OpenVirtual(string virtualPortName)
     {
         RtMidiClient.OpenVirtualPort(virtualPortName);
@@ -56,6 +63,7 @@ public abstract class MidiClient : IDisposable
     /// <summary>
     /// Releases the native RtMidi object (which also closes the port).
     /// </summary>
+    /// <param name="disposing"><see langword="true"/> when called from <see cref="Dispose()"/>.</param>
     protected virtual void Dispose(bool disposing)
     {
         if (!_disposedValue)

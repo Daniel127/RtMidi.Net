@@ -7,6 +7,23 @@ namespace RtMidi.Net.Clients;
 /// <summary>
 /// Receives MIDI messages from an input port, through <see cref="OnMessageReceived"/> or by polling.
 /// </summary>
+/// <remarks>
+/// Until <see cref="ActivateMessageReceivedEvent"/> is called, messages are queued and read with
+/// <see cref="TryGetMessage"/>, <see cref="GetMessage"/> or <see cref="GetMessageAsync"/>.
+/// System Exclusive, timing and Active Sensing messages are ignored by default.
+/// </remarks>
+/// <example>
+/// <code>
+/// using var input = new MidiInputClient(device);
+/// input.OnMessageReceived += (_, e) =&gt;
+/// {
+///     if (e.Message is MidiMessageNote { Type: MidiMessageType.NoteOn, Velocity: &gt; 0 } note)
+///         Console.WriteLine($"{note.Note} velocity {note.Velocity}"); // e.g. "C4 velocity 100"
+/// };
+/// input.ActivateMessageReceivedEvent();
+/// input.Open();
+/// </code>
+/// </example>
 public class MidiInputClient : MidiClient
 {
     private readonly RtMidiIn _rtMidiInClient;
@@ -75,6 +92,8 @@ public class MidiInputClient : MidiClient
     /// <summary>
     /// Creates a client for the given input device. Call <see cref="MidiClient.Open"/> to connect.
     /// </summary>
+    /// <param name="deviceInfo">An input port from <see cref="MidiManager"/>.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="deviceInfo"/> is null.</exception>
     public MidiInputClient(MidiDeviceInfo deviceInfo) : base(deviceInfo, new RtMidiIn())
     {
         _rtMidiInClient = (RtMidiIn)RtMidiClient;
@@ -119,7 +138,7 @@ public class MidiInputClient : MidiClient
     }
 
     /// <summary>
-    /// Waits for the next message from the input queue.
+    /// Waits for the next message from the input queue, blocking the calling thread.
     /// </summary>
     /// <returns>The message and its delta-time since the previous message.</returns>
     public (MidiMessage, TimeSpan) GetMessage()
