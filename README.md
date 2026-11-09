@@ -59,6 +59,23 @@ var (message, timestamp) = await input.GetMessageAsync(cancellationToken);
 if (message is MidiMessageNote { Type: MidiMessageType.NoteOn } note)
     Console.WriteLine($"{note.Note.GetName()} velocity {note.Velocity}");
 ```
+
+## Note names and octaves
+
+``MidiNote`` uses scientific pitch notation (ISO): MIDI note 60 (middle C) is ``C4``, 69 (A440) is ``A4``, 0 is ``C-1`` and 127 is ``G9``. ``MusicOctave`` follows it too (``MusicOctave.Octave4`` is the octave of middle C).
+
+Some software numbers octaves differently (middle C as ``C3`` in Yamaha or Ableton, ``C5`` in others, or ``Do3`` in Spanish conservatories). That only changes the text, so ``GetName`` and ``Parse`` take the octave of middle C (from -10 to 10):
+
+```csharp
+var note = new MidiNote(60);
+string a = note.GetName();                                      // "C4"
+string b = note.GetName(useLatinName: true);                    // "Do4"
+string c = note.GetName(useLatinName: true, middleCOctave: 3);  // "Do3"
+byte bFlat = MidiNote.Parse("Bb3").Number;                      // 58 (also "A#3", "Sib3", "La#3")
+byte middleC = MidiNote.Parse("C3", middleCOctave: 3).Number;   // 60
+```
+
+> Changed in 2.0: before, ``MusicOctave`` and ``GetName`` numbered the octaves from MIDI note 0, so middle C was ``C5`` / ``Octave5``. ``MidiNote(MusicNote, MusicOctave)`` now gives a note one octave higher for the same enum value name (``Octave4`` was MIDI 48, now it is 60); MIDI note numbers and bytes are unchanged.
 # Native libraries
 
 The NuGet package includes the native RtMidi library for these platforms, so you don't need to build RtMidi yourself:
