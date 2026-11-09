@@ -28,7 +28,7 @@ public class MidiMessagesTests
     {
         var note = new MidiNote(60);
         Assert.Equal(MidiMessageType.PolyphonicKeyPressure, new MidiMessageNoteAfterTouch(MidiChannel.Channel01, note, 1).Type);
-        Assert.Equal(MidiMessageType.ControlChange, new MidiMessageControlChange(MidiChannel.Channel01, 1, 1).Type);
+        Assert.Equal(MidiMessageType.ControlChange, new MidiMessageControlChange(MidiChannel.Channel01, MidiControlFunction.ModulationWheel, 1).Type);
         Assert.Equal(MidiMessageType.ProgramChange, new MidiMessageProgramChange(MidiChannel.Channel01, 1).Type);
         Assert.Equal(MidiMessageType.ChannelPressure, new MidiMessageChannelAfterTouch(MidiChannel.Channel01, 1).Type);
         Assert.Equal(MidiMessageType.PitchBendChange, new MidiMessagePitchBendChange(MidiChannel.Channel01, 0, 0).Type);

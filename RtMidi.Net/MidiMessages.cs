@@ -72,9 +72,16 @@ public record MidiMessageNoteAfterTouch(MidiChannel Channel, MidiNote Note, byte
 /// Control Change: a controller (knob, fader, pedal...) moved, or a channel mode message (controllers 120 to 127).
 /// </summary>
 /// <param name="Channel">The MIDI channel.</param>
-/// <param name="ControlFunction">The controller number, 0 to 127 (e.g. 1 modulation wheel, 7 volume, 64 sustain pedal).</param>
+/// <param name="ControlFunction">The controller, e.g. <see cref="MidiControlFunction.DamperPedal"/>. Any number from 0 to 127
+/// is valid, also those without a name: <c>(MidiControlFunction)20</c>.</param>
 /// <param name="Value">The controller value, 0 to 127.</param>
-public record MidiMessageControlChange(MidiChannel Channel, byte ControlFunction, byte Value) : MidiMessage(MidiMessageType.ControlChange);
+public record MidiMessageControlChange(MidiChannel Channel, MidiControlFunction ControlFunction, byte Value) : MidiMessage(MidiMessageType.ControlChange)
+{
+    /// <summary>
+    /// The control number (0-127) of <see cref="ControlFunction"/>, the first data byte of the message.
+    /// </summary>
+    public byte ControlNumber => (byte)ControlFunction;
+}
 
 /// <summary>
 /// Program Change: selects an instrument or preset.

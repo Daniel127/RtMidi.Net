@@ -27,6 +27,8 @@ It has breaking changes: see the [migration guide](MIGRATION.md) to update from 
   `MidiMessagePitchBendChange`, `MidiMessageSystemExclusive`, `MidiMessageTimeCodeQuarterFrame`,
   `MidiMessageSongPositionPointer`, `MidiMessageSongSelect` and `MidiMessageUnknown`) no longer take a
   `Type` parameter, so their positional deconstruction has one value less.
+- `MidiMessageControlChange.ControlFunction` is a `MidiControlFunction` (was `byte`); the number is in the new
+  `ControlNumber` property.
 - `MidiOutputClient.SendMessage(byte[])` is now `SendMessage(ReadOnlySpan<byte>)`. Arrays still convert
   implicitly; an empty message (or a null array) throws `ArgumentException`.
 - `MidiInputClient.GetMessage` and `GetMessageAsync` return the delta-time reported by RtMidi (time since
@@ -58,6 +60,8 @@ It has breaking changes: see the [migration guide](MIGRATION.md) to update from 
   (e.g. 3 for Yamaha, Ableton or `Do3`).
 - `MidiNote` equality and comparison (`==`, `<`, `IEquatable<MidiNote>`, `IComparable<MidiNote>`) by note
   number.
+- `MidiControlFunction`, the Control Change controllers named as in the MIDI 1.0 specification table (e.g.
+  `DamperPedal`, `ChannelVolume`, `AllNotesOff`), and `MidiMessageControlChange.ControlNumber`.
 - `MidiMessageTimeCodeQuarterFrame` for MIDI Time Code Quarter Frame messages (they threw
   `NotImplementedException`).
 - `MidiApi.WindowsMidiServices`, RtMidi's new Windows API (not compiled into the Windows library yet).

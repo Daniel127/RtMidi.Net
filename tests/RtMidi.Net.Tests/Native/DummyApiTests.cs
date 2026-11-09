@@ -293,7 +293,7 @@ public class DummyApiTests
         using var client = new MidiOutputClient(device);
         client.Open();
 
-        client.SendMessage(new MidiMessageControlChange(MidiChannel.Channel01, 7, 100));
+        client.SendMessage(new MidiMessageControlChange(MidiChannel.Channel01, MidiControlFunction.ChannelVolume, 100));
         client.SendMessage([0xF8]);
         Assert.Throws<ArgumentException>(() => client.SendMessage(ReadOnlySpan<byte>.Empty));
         Assert.Throws<ArgumentException>(() => client.SendMessage(new MidiMessage(MidiMessageType.NoteOn)));

@@ -58,7 +58,7 @@ internal static class MidiMessageConverter
                 new MidiMessageNote(channel, new MidiNote(message[1]), message[2], type),
             MidiMessageType.PolyphonicKeyPressure =>
                 new MidiMessageNoteAfterTouch(channel, new MidiNote(message[1]), message[2]),
-            MidiMessageType.ControlChange => new MidiMessageControlChange(channel, message[1], message[2]),
+            MidiMessageType.ControlChange => new MidiMessageControlChange(channel, (MidiControlFunction)message[1], message[2]),
             MidiMessageType.ProgramChange => new MidiMessageProgramChange(channel, message[1]),
             MidiMessageType.ChannelPressure => new MidiMessageChannelAfterTouch(channel, message[1]),
             // Only PitchBendChange is left in 0x80-0xEF.
@@ -109,7 +109,7 @@ internal static class MidiMessageConverter
             MidiMessageNoteAfterTouch { Type: MidiMessageType.PolyphonicKeyPressure } afterTouch =>
                 [Status(afterTouch.Type, afterTouch.Channel), Data(afterTouch.Note.Number), Data(afterTouch.Pressure)],
             MidiMessageControlChange { Type: MidiMessageType.ControlChange } controlChange =>
-                [Status(controlChange.Type, controlChange.Channel), Data(controlChange.ControlFunction), Data(controlChange.Value)],
+                [Status(controlChange.Type, controlChange.Channel), Data(controlChange.ControlNumber), Data(controlChange.Value)],
             MidiMessageProgramChange { Type: MidiMessageType.ProgramChange } programChange =>
                 [Status(programChange.Type, programChange.Channel), Data(programChange.Program)],
             MidiMessageChannelAfterTouch { Type: MidiMessageType.ChannelPressure } channelPressure =>

@@ -116,8 +116,22 @@ var cc = new MidiMessageControlChange(MidiChannel.Channel01, 7, 100, MidiMessage
 if (message is MidiMessageControlChange(var channel, var controller, var value, _)) { }
 
 // 2.0
-var cc = new MidiMessageControlChange(MidiChannel.Channel01, 7, 100);
+var cc = new MidiMessageControlChange(MidiChannel.Channel01, MidiControlFunction.ChannelVolume, 100);
 if (message is MidiMessageControlChange(var channel, var controller, var value)) { }
+```
+
+`ControlFunction` is now a `MidiControlFunction` with the controllers of the MIDI 1.0 specification
+(`DamperPedal` is 64, `ChannelVolume` is 7...). Compare with the names, or use `ControlNumber` for the number:
+
+```csharp
+// 1.x
+var volume = new MidiMessageControlChange(MidiChannel.Channel01, 7, 100);
+if (received.ControlFunction == 64) { /* sustain pedal */ }
+
+// 2.0
+var volume = new MidiMessageControlChange(MidiChannel.Channel01, MidiControlFunction.ChannelVolume, 100);
+if (received.ControlFunction == MidiControlFunction.DamperPedal) { }  // or received.ControlNumber == 64
+var custom = new MidiMessageControlChange(MidiChannel.Channel01, (MidiControlFunction)20, 100); // undefined numbers work too
 ```
 
 `MidiMessageNote` keeps its `Type`, because it is either `NoteOn` or `NoteOff`. Property patterns such as
