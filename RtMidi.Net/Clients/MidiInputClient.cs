@@ -25,7 +25,7 @@ namespace RtMidi.Net;
 public sealed class MidiInputClient : MidiClient
 {
     private readonly RtMidiIn _rtMidiInClient;
-    private readonly object _eventLock = new();
+    private readonly Lock _eventLock = new();
     private EventHandler<MidiMessageReceivedEventArgs>? _messageReceived;
     private bool _disposed; // guarded by _eventLock, so no subscription change reaches a freed native object
     private bool _ignoreSysexMessages = true;

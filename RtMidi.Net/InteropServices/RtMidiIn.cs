@@ -64,7 +64,7 @@ internal sealed class RtMidiIn : RtMidiBase
     private nint _callbackToken;
     private readonly uint _queueSizeLimit;
     private readonly ConcurrentQueue<(byte[] Message, double Timestamp)> _pendingMessages = new();
-    private readonly object _messageBufferLock = new();
+    private readonly Lock _messageBufferLock = new();
     private byte[]? _messageBuffer;
 
     /// <summary>
