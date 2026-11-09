@@ -7,11 +7,11 @@ Issues and pull requests are welcome.
 The repository follows Gitflow:
 
 - `develop` is the integration branch. Branch from it (`feature/<name>` or `fix/<name>`) and open pull requests against it.
-- `release/vX.Y.Z` is created from `develop` when a version is ready. Only stabilization fixes go there. It is merged into `main` through a pull request, and that merge commit is tagged `vX.Y.Z`, which publishes the package to nuget.org. `main` is then merged back into `develop`.
+- `release/vX.Y.Z` is created from `develop` once the version is complete and no more features will go into it. Only stabilization fixes go there. It is merged into `main` through a pull request, and that merge commit is tagged `vX.Y.Z`, which publishes the package to nuget.org. `main` is then merged back into `develop`.
 - `main` holds released versions only.
 - An urgent fix for a released version goes in `hotfix/vX.Y.Z`, branched from `main` and merged into both `main` and `develop`.
 
-Pre-releases (`vX.Y.Z-preview.N`) are tagged on the release branch; any `v*` tag publishes.
+Previews of a version still in development (`vX.Y.Z-preview.N`) are tagged on `develop`. Any `v*` tag publishes to nuget.org, whatever the branch.
 
 ## Getting the code
 
