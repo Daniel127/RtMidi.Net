@@ -19,9 +19,10 @@
 
         <!-- XML docs (IntelliSense) for every target framework in the package -->
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
-        <!-- Missing or broken XML docs fail the build: CS1591 undocumented public member, CS1573 missing param,
-             CS1572 param that does not exist, CS1574 unresolved cref, CS1570 badly formed XML -->
-        <WarningsAsErrors>$(WarningsAsErrors);CS1570;CS1572;CS1573;CS1574;CS1591</WarningsAsErrors>
+        <!-- In CI, missing or broken XML docs fail the build: CS1591 undocumented public member, CS1573 missing param,
+             CS1572 param that does not exist, CS1574 unresolved cref, CS1570 badly formed XML.
+             Local builds only warn, so documentation can be written once the code works. -->
+        <WarningsAsErrors Condition="'$(GITHUB_ACTIONS)' == 'true'">$(WarningsAsErrors);CS1570;CS1572;CS1573;CS1574;CS1591</WarningsAsErrors>
 
         <!-- Debugging: symbol package (.snupkg) with Source Link to the GitHub commit -->
         <IncludeSymbols>true</IncludeSymbols>
