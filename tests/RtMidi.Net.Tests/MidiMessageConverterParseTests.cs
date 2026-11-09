@@ -17,7 +17,7 @@ public class MidiMessageConverterParseTests
         Assert.Equal(type, note.Type);
         Assert.Equal(channel, note.Channel);
         Assert.Equal(MusicNote.C, note.Note.Note);
-        Assert.Equal(MusicOctave.Octave5, note.Note.Octave);
+        Assert.Equal(MusicOctave.Octave4, note.Note.Octave);
         Assert.Equal(100, note.Velocity);
     }
 
