@@ -1,4 +1,3 @@
-using RtMidi.Net.Enums;
 
 namespace RtMidi.Net.Tests;
 
@@ -12,17 +11,6 @@ public class MidiMessagesTests
     public void PitchBend_Value_Combines7BitBytes(byte lsb, byte msb, int expected)
     {
         Assert.Equal(expected, new MidiMessagePitchBendChange(MidiChannel.Channel01, lsb, msb).Value);
-    }
-
-    [Fact]
-    public void PitchBend_ObsoleteChanel_ReturnsChannel()
-    {
-        var message = new MidiMessagePitchBendChange(MidiChannel.Channel09, 0, 0);
-#pragma warning disable CS0618 // kept for compatibility
-        Assert.Equal(MidiChannel.Channel09, message.Chanel);
-        Assert.Equal(MidiChannel.Channel03, (message with { Chanel = MidiChannel.Channel03 }).Channel);
-        Assert.Equal(MidiChannel.Channel04, new MidiMessagePitchBendChange(MidiChannel.Channel01, 0, 0) { Chanel = MidiChannel.Channel04 }.Channel);
-#pragma warning restore CS0618
     }
 
     [Theory]
@@ -40,7 +28,7 @@ public class MidiMessagesTests
     {
         var note = new MidiNote(60);
         Assert.Equal(MidiMessageType.PolyphonicKeyPressure, new MidiMessageNoteAfterTouch(MidiChannel.Channel01, note, 1).Type);
-        Assert.Equal(MidiMessageType.ControlChange, new MidiMessageControlChange(MidiChannel.Channel01, 1, 1).Type);
+        Assert.Equal(MidiMessageType.ControlChange, new MidiMessageControlChange(MidiChannel.Channel01, MidiControlFunction.ModulationWheel, 1).Type);
         Assert.Equal(MidiMessageType.ProgramChange, new MidiMessageProgramChange(MidiChannel.Channel01, 1).Type);
         Assert.Equal(MidiMessageType.ChannelPressure, new MidiMessageChannelAfterTouch(MidiChannel.Channel01, 1).Type);
         Assert.Equal(MidiMessageType.PitchBendChange, new MidiMessagePitchBendChange(MidiChannel.Channel01, 0, 0).Type);
@@ -55,7 +43,7 @@ public class MidiMessagesTests
     public void ReceivedEventArgs_KeepsMessageAndTimestamp()
     {
         var message = new MidiMessage(MidiMessageType.Start);
-        var args = new Events.MidiMessageReceivedEventArgs(message, TimeSpan.FromMilliseconds(5));
+        var args = new MidiMessageReceivedEventArgs(message, TimeSpan.FromMilliseconds(5));
 
         Assert.Same(message, args.Message);
         Assert.Equal(TimeSpan.FromMilliseconds(5), args.Timestamp);

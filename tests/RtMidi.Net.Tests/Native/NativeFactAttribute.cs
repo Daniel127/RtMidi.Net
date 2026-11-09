@@ -1,6 +1,5 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using RtMidi.Net.Enums;
 using RtMidi.Net.InteropServices;
 
 namespace RtMidi.Net.Tests.Native;

@@ -1,6 +1,6 @@
 using RtMidi.Net.InteropServices;
 
-namespace RtMidi.Net.Clients;
+namespace RtMidi.Net;
 
 /// <summary>
 /// Sends MIDI messages to an output port.
@@ -14,7 +14,7 @@ namespace RtMidi.Net.Clients;
 /// output.SendMessage(new MidiMessageNote(MidiChannel.Channel01, middleC, 0, MidiMessageType.NoteOff));
 /// </code>
 /// </example>
-public class MidiOutputClient : MidiClient
+public sealed class MidiOutputClient : MidiClient
 {
     private readonly RtMidiOut _rtMidiOutClient;
 
@@ -40,13 +40,11 @@ public class MidiOutputClient : MidiClient
     /// <summary>
     /// Sends raw MIDI bytes, without checking them.
     /// </summary>
-    /// <param name="message">One complete MIDI message, status byte first.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="message"/> is null.</exception>
-    /// <exception cref="ArgumentException"><paramref name="message"/> is empty.</exception>
+    /// <param name="message">One complete MIDI message, status byte first. A <see cref="T:byte[]"/> converts implicitly.</param>
+    /// <exception cref="ArgumentException"><paramref name="message"/> is empty (or a null array).</exception>
     /// <exception cref="RtMidiException">RtMidi reported an error while sending.</exception>
-    public void SendMessage(byte[] message)
+    public void SendMessage(ReadOnlySpan<byte> message)
     {
-        ArgumentNullException.ThrowIfNull(message);
         _rtMidiOutClient.SendMessage(message);
     }
 

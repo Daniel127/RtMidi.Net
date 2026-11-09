@@ -28,26 +28,26 @@ If you find any error or have any improvement do not hesitate to make a PR.
 
 # How to use?
 
+Upgrading from 1.x? See the [migration guide](https://github.com/Daniel127/RtMidi.Net/blob/main/MIGRATION.md) and the [changelog](https://github.com/Daniel127/RtMidi.Net/blob/main/CHANGELOG.md).
+
 The package targets .NET 8 and .NET 10.
 
 To connect to a device you can use the ``MidiInputClient`` and ``MidiOutputClient`` classes, ``MidiManager`` has useful methods to know the environment.
 
 There is a project (WorkerTest) to test the key reading but it really receives any kind of MIDI message so don't hesitate to extend it if you need it.
 
-If you subscribe to the ``OnMessageReceived`` event of the ``MidiInputClient`` don't forget to use ``ActivateMessageReceivedEvent`` for this event to work, this is because RtMidi includes a queue to store the events and later you can read the events with ``GetMessage``, if you need to stop reading the events in real time you can use ``DeactivateMessageReceivedEvent`` to deactivate the event.
+Subscribe to the ``MessageReceived`` event of the ``MidiInputClient`` to receive every message as it arrives (on RtMidi's thread). While the event has no handlers, RtMidi queues the messages and you can read them with ``TryGetMessage``, ``GetMessage`` or ``GetMessageAsync``.
 
 ```csharp
 uint devicePort = 0;
-var device = MidiManager.GetDeviceInfo(devicePort, RtMidi.Net.Enums.MidiDeviceType.Input);
-MidiInputClient midiInputClient = new MidiInputClient(device);
-midiInputClient.OnMessageReceived += MidiClient_OnMessageReceived;
-midiInputClient.ActivateMessageReceivedEvent();
+var device = MidiManager.GetDeviceInfo(devicePort, MidiDeviceType.Input);
+using var midiInputClient = new MidiInputClient(device);
+midiInputClient.MessageReceived += MidiClient_MessageReceived;
 midiInputClient.Open();
 
 //...wait or do something...
 
 midiInputClient.Close();
-midiInputClient.Dispose();
 ```
 
 Without the event, read the queue with ``TryGetMessage`` (returns immediately), ``GetMessage`` or ``GetMessageAsync`` (wait for the next message). The timestamp is the time since the previous message, as reported by RtMidi.

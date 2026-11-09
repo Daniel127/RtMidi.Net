@@ -1,4 +1,3 @@
-using RtMidi.Net.Enums;
 
 namespace RtMidi.Net.Tests;
 
@@ -37,7 +36,7 @@ public class MidiMessageConverterParseTests
 
         Assert.Equal(MidiMessageType.PolyphonicKeyPressure, message.Type);
         Assert.Equal(MidiChannel.Channel04, message.Channel);
-        Assert.Equal(127, message.Note.GetByteRepresentation());
+        Assert.Equal(127, message.Note.Number);
         Assert.Equal(55, message.Pressure);
     }
 
@@ -46,7 +45,17 @@ public class MidiMessageConverterParseTests
     {
         var message = MidiMessageConverter.Parse([0xB0, 7, 99]);
 
-        Assert.Equal(new MidiMessageControlChange(MidiChannel.Channel01, 7, 99), message);
+        Assert.Equal(new MidiMessageControlChange(MidiChannel.Channel01, MidiControlFunction.ChannelVolume, 99), message);
+    }
+
+    [Fact]
+    public void Parse_ControlChange_UndefinedController_KeepsItsNumber()
+    {
+        var message = Assert.IsType<MidiMessageControlChange>(MidiMessageConverter.Parse([0xB2, 20, 64]));
+
+        Assert.Equal((MidiControlFunction)20, message.ControlFunction);
+        Assert.Equal(20, message.ControlNumber);
+        Assert.Equal("20", message.ControlFunction.ToString());
     }
 
     [Fact]

@@ -1,4 +1,3 @@
-using RtMidi.Net.Enums;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -65,7 +64,7 @@ internal sealed class RtMidiIn : RtMidiBase
     private nint _callbackToken;
     private readonly uint _queueSizeLimit;
     private readonly ConcurrentQueue<(byte[] Message, double Timestamp)> _pendingMessages = new();
-    private readonly object _messageBufferLock = new();
+    private readonly Lock _messageBufferLock = new();
     private byte[]? _messageBuffer;
 
     /// <summary>
@@ -288,14 +287,14 @@ internal sealed class RtMidiIn : RtMidiBase
     }
 
     /// <inheritdoc />
-    protected override void ReleaseUnmanagedResources()
+    protected override void ReleaseUnmanagedResources(IntPtr rtMidiPtr)
     {
         // rtmidi_in_free frees the callback's data before it stops the input thread, so
         // stop the input first: closing the port ends delivery (ALSA joins its thread,
         // CoreMIDI disposes the port and the virtual endpoint).
         _handler = null;
-        if (_callbackToken != 0) RtMidiInterop.rtmidi_close_port(RtMidiPtr);
-        RtMidiInterop.rtmidi_in_free(RtMidiPtr);
+        if (_callbackToken != 0) RtMidiInterop.rtmidi_close_port(rtMidiPtr);
+        RtMidiInterop.rtmidi_in_free(rtMidiPtr);
         UnregisterCallback();
         _pendingMessages.Clear();
     }

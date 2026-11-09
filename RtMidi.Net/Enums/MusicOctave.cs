@@ -1,4 +1,4 @@
-namespace RtMidi.Net.Enums;
+namespace RtMidi.Net;
 
 /// <summary>
 /// Octave of a MIDI note in scientific pitch notation (ISO): middle C (MIDI note 60) is C in

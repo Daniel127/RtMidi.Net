@@ -1,4 +1,4 @@
-namespace RtMidi.Net.Enums;
+namespace RtMidi.Net;
 
 /// <summary>
 /// Note inside an octave, with English (C, D...) and Latin (Do, Re...) names.

@@ -1,32 +1,33 @@
 using System.Diagnostics.CodeAnalysis;
-using RtMidi.Net.Events;
 using RtMidi.Net.InteropServices;
 
-namespace RtMidi.Net.Clients;
+namespace RtMidi.Net;
 
 /// <summary>
-/// Receives MIDI messages from an input port, through <see cref="OnMessageReceived"/> or by polling.
+/// Receives MIDI messages from an input port, through <see cref="MessageReceived"/> or by polling.
 /// </summary>
 /// <remarks>
-/// Until <see cref="ActivateMessageReceivedEvent"/> is called, messages are queued and read with
-/// <see cref="TryGetMessage"/>, <see cref="GetMessage"/> or <see cref="GetMessageAsync"/>.
+/// While <see cref="MessageReceived"/> has no handlers, messages are queued and read with
+/// <see cref="TryGetMessage"/>, <see cref="GetMessage(CancellationToken)"/> or <see cref="GetMessageAsync"/>.
 /// System Exclusive, timing and Active Sensing messages are ignored by default.
 /// </remarks>
 /// <example>
 /// <code>
 /// using var input = new MidiInputClient(device);
-/// input.OnMessageReceived += (_, e) =&gt;
+/// input.MessageReceived += (_, e) =&gt;
 /// {
 ///     if (e.Message is MidiMessageNote { Type: MidiMessageType.NoteOn, Velocity: &gt; 0 } note)
 ///         Console.WriteLine($"{note.Note} velocity {note.Velocity}"); // e.g. "C4 velocity 100"
 /// };
-/// input.ActivateMessageReceivedEvent();
 /// input.Open();
 /// </code>
 /// </example>
-public class MidiInputClient : MidiClient
+public sealed class MidiInputClient : MidiClient
 {
     private readonly RtMidiIn _rtMidiInClient;
+    private readonly Lock _eventLock = new();
+    private EventHandler<MidiMessageReceivedEventArgs>? _messageReceived;
+    private bool _disposed; // guarded by _eventLock, so no subscription change reaches a freed native object
     private bool _ignoreSysexMessages = true;
     private bool _ignoreTimeMessages = true;
     private bool _ignoreSenseMessages = true;
@@ -71,14 +72,56 @@ public class MidiInputClient : MidiClient
     }
 
     /// <summary>
-    /// Raised on RtMidi's thread for every message, after <see cref="ActivateMessageReceivedEvent"/>.
+    /// Raised on RtMidi's thread for every message received while it has at least one handler.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// Subscribing starts delivering messages here instead of the queue read by the polling methods;
+    /// removing the last handler sends new messages to the queue again. Messages already queued
+    /// when the first handler is added stay in the queue. Subscribe before <see cref="MidiClient.Open"/>
+    /// so no message is queued in between.
+    /// </para>
+    /// <para>
+    /// Subscribing after <see cref="MidiClient.Dispose()"/> throws <see cref="ObjectDisposedException"/>;
+    /// unsubscribing is always allowed.
+    /// </para>
+    /// <para>
     /// The timestamp is the delta-time since the previous message. An exception thrown
     /// by a handler is caught and written to <see cref="System.Diagnostics.Trace"/>,
     /// because it can't propagate through the native library.
+    /// </para>
     /// </remarks>
-    public event EventHandler<MidiMessageReceivedEventArgs>? OnMessageReceived;
+    public event EventHandler<MidiMessageReceivedEventArgs>? MessageReceived
+    {
+        add
+        {
+            lock (_eventLock)
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                var previous = _messageReceived;
+                _messageReceived += value;
+                if (ReferenceEquals(previous, _messageReceived)) return;
+                try
+                {
+                    UpdateCallback();
+                }
+                catch
+                {
+                    _messageReceived = previous;
+                    throw;
+                }
+            }
+        }
+        remove
+        {
+            lock (_eventLock)
+            {
+                _messageReceived -= value;
+                // After disposal only the managed list changes: the native object is gone.
+                if (!_disposed) UpdateCallback();
+            }
+        }
+    }
 
     /// <summary>
     /// Creates a client that is not bound to a device, to be used with
@@ -99,20 +142,19 @@ public class MidiInputClient : MidiClient
         _rtMidiInClient = (RtMidiIn)RtMidiClient;
     }
 
-    /// <summary>
-    /// Starts raising <see cref="OnMessageReceived"/>. While it is active, the polling methods receive nothing.
-    /// </summary>
-    public void ActivateMessageReceivedEvent()
+    /// <inheritdoc />
+    protected override void Dispose(bool disposing)
     {
-        _rtMidiInClient.SetCallback(InternalMessageReceived);
-    }
+        // Mark the client as disposed under the event lock, so a concurrent subscription change either
+        // finishes before the native object is freed or sees the flag. The native object is freed
+        // outside the lock: a handler running on RtMidi's thread may unsubscribe while Dispose waits
+        // for that thread to stop.
+        lock (_eventLock)
+        {
+            _disposed = true;
+        }
 
-    /// <summary>
-    /// Stops raising <see cref="OnMessageReceived"/>; new messages go to the queue read by the polling methods.
-    /// </summary>
-    public void DeactivateMessageReceivedEvent()
-    {
-        _rtMidiInClient.CancelCallback();
+        base.Dispose(disposing);
     }
 
     private void UpdateIgnoredTypes()
@@ -120,10 +162,22 @@ public class MidiInputClient : MidiClient
         _rtMidiInClient.IgnoreTypes(_ignoreSysexMessages, _ignoreTimeMessages, _ignoreSenseMessages);
     }
 
-    private void InternalMessageReceived(double timestamp, ReadOnlySpan<byte> messageData)
+    // The native handler captures the current handlers, so a message already being delivered when
+    // the last handler is removed still reaches them instead of being lost (it can't go to the queue
+    // any more). Without handlers, new messages go to the queue.
+    private void UpdateCallback()
     {
-        var message = MidiMessageConverter.Parse(messageData);
-        OnMessageReceived?.Invoke(this, new MidiMessageReceivedEventArgs(message, TimeSpan.FromSeconds(timestamp)));
+        if (_messageReceived is not { } handlers)
+        {
+            _rtMidiInClient.CancelCallback();
+            return;
+        }
+
+        _rtMidiInClient.SetCallback((timestamp, messageData) =>
+        {
+            var message = MidiMessageConverter.Parse(messageData);
+            handlers(this, new MidiMessageReceivedEventArgs(message, TimeSpan.FromSeconds(timestamp)));
+        });
     }
 
     /// <summary>
@@ -140,10 +194,12 @@ public class MidiInputClient : MidiClient
     /// <summary>
     /// Waits for the next message from the input queue, blocking the calling thread.
     /// </summary>
+    /// <param name="cancellationToken">Stops waiting.</param>
     /// <returns>The message and its delta-time since the previous message.</returns>
-    public (MidiMessage, TimeSpan) GetMessage()
+    /// <exception cref="OperationCanceledException">The token was cancelled before a message arrived.</exception>
+    public (MidiMessage Message, TimeSpan Timestamp) GetMessage(CancellationToken cancellationToken = default)
     {
-        return MessagePolling.Wait(_rtMidiInClient.GetMessage, CancellationToken.None);
+        return MessagePolling.Wait(_rtMidiInClient.GetMessage, cancellationToken);
     }
 
     /// <summary>
@@ -152,7 +208,7 @@ public class MidiInputClient : MidiClient
     /// <param name="cancellationToken">Stops waiting.</param>
     /// <returns>The message and its delta-time since the previous message.</returns>
     /// <exception cref="OperationCanceledException">The token was cancelled before a message arrived.</exception>
-    public Task<(MidiMessage, TimeSpan)> GetMessageAsync(CancellationToken cancellationToken)
+    public Task<(MidiMessage Message, TimeSpan Timestamp)> GetMessageAsync(CancellationToken cancellationToken = default)
     {
         return MessagePolling.WaitAsync(_rtMidiInClient.GetMessage, cancellationToken);
     }

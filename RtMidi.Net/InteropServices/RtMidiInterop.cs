@@ -14,7 +14,7 @@ namespace RtMidi.Net.InteropServices;
 /// <para>Types follow the C header exactly:</para>
 /// <list type="bullet">
 /// <item><c>enum RtMidiApi</c> is a C <c>int</c>, so APIs are passed as <see cref="int"/>
-/// (<see cref="Enums.MidiApi"/> is a byte-sized enum).</item>
+/// (<see cref="MidiApi"/> is a byte-sized enum).</item>
 /// <item><c>bool</c> is the 1-byte C/C++ bool.</item>
 /// <item><c>size_t</c> is <see cref="nuint"/>.</item>
 /// <item>Strings are UTF-8.</item>
@@ -224,7 +224,7 @@ internal static partial class RtMidiInterop
     /// </summary>
     [LibraryImport(RtMidiLibrary)]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static partial int rtmidi_out_send_message(IntPtr device, [In] byte[] message, int length);
+    internal static partial int rtmidi_out_send_message(IntPtr device, ReadOnlySpan<byte> message, int length);
 
     #endregion
 }

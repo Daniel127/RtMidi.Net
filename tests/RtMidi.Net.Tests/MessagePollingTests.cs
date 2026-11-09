@@ -1,6 +1,4 @@
 using System.Diagnostics;
-using RtMidi.Net.Clients;
-using RtMidi.Net.Enums;
 
 namespace RtMidi.Net.Tests;
 

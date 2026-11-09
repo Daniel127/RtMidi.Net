@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using RtMidi.Net;
-using RtMidi.Net.Enums;
 
 namespace RtMidi.Net.PackageTest;
 

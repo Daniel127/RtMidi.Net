@@ -15,6 +15,7 @@
         <RepositoryType>git</RepositoryType>
         <PackageTags>MIDI;RtMidi;realtime;audio;music;ALSA;CoreMIDI;WinMM</PackageTags>
         <Authors>Daniel Quiñones</Authors>
+        <PackageReleaseNotes>Changes and migration from 1.x: https://github.com/Daniel127/RtMidi.Net/blob/main/CHANGELOG.md</PackageReleaseNotes>
         <Description>.NET wrapper for RtMidi: realtime MIDI input and output on Windows, Linux (including Raspberry Pi) and macOS. Includes the native RtMidi libraries.</Description>
 
         <!-- XML docs (IntelliSense) for every target framework in the package -->

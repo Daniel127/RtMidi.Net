@@ -1,7 +1,4 @@
 using System.Runtime.CompilerServices;
-using RtMidi.Net.Clients;
-using RtMidi.Net.Enums;
-using RtMidi.Net.Events;
 using RtMidi.Net.InteropServices;
 using System.Runtime.InteropServices;
 
@@ -170,8 +167,8 @@ public class DummyApiTests
     {
         using var client = new MidiInputClient();
         var received = new List<MidiMessageReceivedEventArgs>();
-        client.OnMessageReceived += (_, e) => received.Add(e);
-        client.ActivateMessageReceivedEvent();
+        EventHandler<MidiMessageReceivedEventArgs> handler = (_, e) => received.Add(e);
+        client.MessageReceived += handler;
 
         // Call the callback the way RtMidi does, with the user data registered for this client.
         InvokeNativeCallback(0.5, [0x91, 64, 90], ((RtMidiIn)client.RtMidiClient).CallbackUserData);
@@ -180,20 +177,21 @@ public class DummyApiTests
         Assert.Equal(new MidiMessageNote(MidiChannel.Channel02, new MidiNote(64), 90, MidiMessageType.NoteOn), args.Message);
         Assert.Equal(TimeSpan.FromSeconds(0.5), args.Timestamp);
 
-        client.DeactivateMessageReceivedEvent();
+        client.MessageReceived -= handler;
     }
 
     [NativeFact]
-    public void InputClient_Deactivated_QueuesMessagesForPolling()
+    public void InputClient_WithoutHandlers_QueuesMessagesForPolling()
     {
         using var client = new MidiInputClient();
         var received = 0;
-        client.OnMessageReceived += (_, _) => received++;
-        client.ActivateMessageReceivedEvent();
+        EventHandler<MidiMessageReceivedEventArgs> first = (_, _) => received++;
+        EventHandler<MidiMessageReceivedEventArgs> second = (_, _) => received += 10;
+        client.MessageReceived += first;
         var userData = ((RtMidiIn)client.RtMidiClient).CallbackUserData;
 
         // The native callback stays set; without a handler the messages go to the queue.
-        client.DeactivateMessageReceivedEvent();
+        client.MessageReceived -= first;
         InvokeNativeCallback(0.25, [0x90, 60, 100], userData);
 
         Assert.Equal(0, received);
@@ -202,16 +200,23 @@ public class DummyApiTests
         Assert.Equal(TimeSpan.FromSeconds(0.25), timestamp);
         Assert.False(client.TryGetMessage(out _, out _));
 
-        // Activating again raises the event, and twice in a row is fine.
-        client.ActivateMessageReceivedEvent();
-        client.ActivateMessageReceivedEvent();
+        // Subscribing again raises the event for every handler, with the same native registration.
+        client.MessageReceived += first;
+        client.MessageReceived += second;
         Assert.Equal(userData, ((RtMidiIn)client.RtMidiClient).CallbackUserData);
         InvokeNativeCallback(0, [0xF8], userData);
-        Assert.Equal(1, received);
+        Assert.Equal(11, received);
 
-        // Deactivating twice (or without activating) is fine too.
-        client.DeactivateMessageReceivedEvent();
-        client.DeactivateMessageReceivedEvent();
+        // Removing one handler keeps the other; removing the last one (or one never added) queues again.
+        client.MessageReceived -= first;
+        InvokeNativeCallback(0, [0xF8], userData);
+        Assert.Equal(21, received);
+        client.MessageReceived -= second;
+        client.MessageReceived -= second;
+        InvokeNativeCallback(0, [0xFA], userData);
+        Assert.Equal(21, received);
+        Assert.True(client.TryGetMessage(out var queued, out _));
+        Assert.Equal(new MidiMessage(MidiMessageType.Start), queued);
     }
 
     [NativeFact]
@@ -233,8 +238,7 @@ public class DummyApiTests
     {
         var client = new MidiInputClient();
         var received = 0;
-        client.OnMessageReceived += (_, _) => received++;
-        client.ActivateMessageReceivedEvent();
+        client.MessageReceived += (_, _) => received++;
         var userData = ((RtMidiIn)client.RtMidiClient).CallbackUserData;
         Assert.NotEqual(IntPtr.Zero, userData);
 
@@ -244,6 +248,39 @@ public class DummyApiTests
 
         Assert.Equal(0, received);
         Assert.Equal(IntPtr.Zero, ((RtMidiIn)client.RtMidiClient).CallbackUserData);
+    }
+
+    [NativeFact]
+    public void InputClient_Unsubscribe_AfterDispose_OnlyChangesTheHandlers()
+    {
+        var client = new MidiInputClient();
+        EventHandler<MidiMessageReceivedEventArgs> first = (_, _) => { };
+        EventHandler<MidiMessageReceivedEventArgs> second = (_, _) => { };
+        client.MessageReceived += first;
+        client.MessageReceived += second;
+
+        client.Dispose();
+
+        // One handler is left, so this would set the native callback again on the freed object.
+        Assert.Null(Record.Exception(() => client.MessageReceived -= first));
+        Assert.Null(Record.Exception(() => client.MessageReceived -= second));
+        Assert.Throws<ObjectDisposedException>(() => client.MessageReceived += first);
+    }
+
+    [NativeFact]
+    public void Clients_AfterDispose_ThrowObjectDisposedException()
+    {
+        var input = new MidiInputClient();
+        input.Dispose();
+        Assert.Throws<ObjectDisposedException>(() => input.TryGetMessage(out _, out _));
+        Assert.Throws<ObjectDisposedException>(() => input.IgnoreSysexMessages = false);
+        Assert.Throws<ObjectDisposedException>(() => input.OpenVirtual("Disposed"));
+        Assert.Null(Record.Exception(input.Close));
+
+        var output = new MidiOutputClient();
+        output.Dispose();
+        Assert.Throws<ObjectDisposedException>(() => output.SendMessage([0xF8]));
+        Assert.Null(Record.Exception(output.Close));
     }
 
     [NativeFact]
@@ -274,8 +311,7 @@ public class DummyApiTests
     public void InputClient_HandlerException_DoesNotEscapeToNativeCode()
     {
         using var client = new MidiInputClient();
-        client.OnMessageReceived += (_, _) => throw new InvalidOperationException("handler failure");
-        client.ActivateMessageReceivedEvent();
+        client.MessageReceived += (_, _) => throw new InvalidOperationException("handler failure");
 
         // Would terminate the process if the exception crossed the native boundary.
         var userData = ((RtMidiIn)client.RtMidiClient).CallbackUserData;
@@ -290,9 +326,9 @@ public class DummyApiTests
         using var client = new MidiOutputClient(device);
         client.Open();
 
-        client.SendMessage(new MidiMessageControlChange(MidiChannel.Channel01, 7, 100));
+        client.SendMessage(new MidiMessageControlChange(MidiChannel.Channel01, MidiControlFunction.ChannelVolume, 100));
         client.SendMessage([0xF8]);
-        Assert.Throws<ArgumentNullException>(() => client.SendMessage((byte[])null!));
+        Assert.Throws<ArgumentException>(() => client.SendMessage(ReadOnlySpan<byte>.Empty));
         Assert.Throws<ArgumentException>(() => client.SendMessage(new MidiMessage(MidiMessageType.NoteOn)));
     }
 

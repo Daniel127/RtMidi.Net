@@ -1,4 +1,3 @@
-using RtMidi.Net.Enums;
 
 namespace RtMidi.Net.Tests;
 
@@ -18,7 +17,8 @@ public class MidiMessageConverterToBytesTests
         { new MidiMessageNote(MidiChannel.Channel01, MiddleC, 100, MidiMessageType.NoteOn), new byte[] { 0x90, 60, 100 } },
         { new MidiMessageNote(MidiChannel.Channel16, MiddleC, 0, MidiMessageType.NoteOff), new byte[] { 0x8F, 60, 0 } },
         { new MidiMessageNoteAfterTouch(MidiChannel.Channel02, new MidiNote(127), 10), new byte[] { 0xA1, 127, 10 } },
-        { new MidiMessageControlChange(MidiChannel.Channel10, 64, 127), new byte[] { 0xB9, 64, 127 } },
+        { new MidiMessageControlChange(MidiChannel.Channel10, MidiControlFunction.DamperPedal, 127), new byte[] { 0xB9, 64, 127 } },
+        { new MidiMessageControlChange(MidiChannel.Channel01, (MidiControlFunction)20, 5), new byte[] { 0xB0, 20, 5 } },
         { new MidiMessageProgramChange(MidiChannel.Channel03, 5), new byte[] { 0xC2, 5 } },
         { new MidiMessageChannelAfterTouch(MidiChannel.Channel04, 90), new byte[] { 0xD3, 90 } },
         { new MidiMessagePitchBendChange(MidiChannel.Channel05, 0x7F, 0x7F), new byte[] { 0xE4, 0x7F, 0x7F } },
@@ -38,8 +38,8 @@ public class MidiMessageConverterToBytesTests
         { new MidiMessage(MidiMessageType.UndefinedReserved1), new byte[] { 0xF4 } },
         { new MidiMessage(MidiMessageType.UndefinedReserved4), new byte[] { 0xFD } },
         { new MidiMessageUnknown([0x01, 0x02, 0x03]), new byte[] { 0x01, 0x02, 0x03 } },
-        // Raw bytes with an explicit type (how Quarter Frames were sent before they had their own record).
-        { new MidiMessageUnknown([0xF1, 0x23], MidiMessageType.TimeCodeQuarterFrame), new byte[] { 0xF1, 0x23 } },
+        // Raw bytes are sent as they are, whatever they contain.
+        { new MidiMessageUnknown([0xF1, 0x23]), new byte[] { 0xF1, 0x23 } },
     };
 
     [Theory]
@@ -91,10 +91,10 @@ public class MidiMessageConverterToBytesTests
         new MidiMessage(MidiMessageType.SystemExclusive),
         new MidiMessage(MidiMessageType.Unknown),
         new MidiMessageNote(MidiChannel.Channel01, MiddleC, 10, MidiMessageType.ControlChange),
-        new MidiMessageControlChange(MidiChannel.Channel01, 1, 1, MidiMessageType.NoteOn),
-        new MidiMessageSongSelect(1, MidiMessageType.SongPositionPointer),
+        new MidiMessageControlChange(MidiChannel.Channel01, MidiControlFunction.ModulationWheel, 1) with { Type = MidiMessageType.NoteOn },
+        new MidiMessageSongSelect(1) with { Type = MidiMessageType.SongPositionPointer },
         new MidiMessageNote(MidiChannel.Channel01, MiddleC, 10, MidiMessageType.SystemReset),
-        new MidiMessageControlChange(MidiChannel.Channel01, 1, 1, MidiMessageType.TimingClock),
+        new MidiMessageControlChange(MidiChannel.Channel01, MidiControlFunction.ModulationWheel, 1) with { Type = MidiMessageType.TimingClock },
     ]);
 
     [Theory]
@@ -109,7 +109,7 @@ public class MidiMessageConverterToBytesTests
     [
         new MidiMessageNote(MidiChannel.Channel01, MiddleC, 128, MidiMessageType.NoteOn),
         new MidiMessageNote((MidiChannel)16, MiddleC, 1, MidiMessageType.NoteOn),
-        new MidiMessageControlChange(MidiChannel.Channel01, 200, 1),
+        new MidiMessageControlChange(MidiChannel.Channel01, (MidiControlFunction)200, 1),
         new MidiMessageProgramChange(MidiChannel.Channel01, 0x80),
         new MidiMessageChannelAfterTouch(MidiChannel.Channel01, 0xFF),
         new MidiMessagePitchBendChange(MidiChannel.Channel01, 0, 0x80),
