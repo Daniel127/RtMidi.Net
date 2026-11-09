@@ -35,7 +35,7 @@ public enum MidiRegisteredParameter : ushort
     /// <summary>00H 06H, MPE Configuration Message (MIDI Polyphonic Expression).</summary>
     MpeConfiguration = 0x0006,
     /// <summary>3DH 00H, Three Dimensional Sound Controllers: Azimuth Angle (RP-049).</summary>
-    Sound3DAzimuthAngle = (0x3D << 7) | 0x00,
+    Sound3DAzimuthAngle = 0x3D << 7,
     /// <summary>3DH 01H, Three Dimensional Sound Controllers: Elevation Angle (RP-049).</summary>
     Sound3DElevationAngle = (0x3D << 7) | 0x01,
     /// <summary>3DH 02H, Three Dimensional Sound Controllers: Gain (RP-049).</summary>
