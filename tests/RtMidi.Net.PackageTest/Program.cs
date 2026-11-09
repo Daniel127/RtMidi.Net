@@ -1,57 +1,77 @@
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using RtMidi.Net;
 using RtMidi.Net.Clients;
 using RtMidi.Net.Enums;
+using RtMidi.Net.PackageTest;
 
 // Package test for RtMidi.Net: a short "real use" session on the current platform.
 //
-// Usage: RtMidi.Net.PackageTest [--devices] [--loopback]
+// Usage: RtMidi.Net.PackageTest [--devices] [--loopback] [--stress [seconds]]
 //   (no flags)  load the native library, print the RtMidi version and compiled APIs
 //   --devices   also initialise the MIDI backend and list the ports
 //   --loopback  open a virtual output port, connect a MidiInputClient to it, send
 //               Note On/Note Off and check both arrive through OnMessageReceived.
-//               Needs virtual port support: CoreMIDI (macOS) or ALSA with /dev/snd/seq.
+//   --stress    send messages in a loop through a virtual port while input clients
+//               turn the event on and off, poll, close and are disposed, for the given
+//               time (default 10 s). Fails on a crash, an exception or a wrong message.
+//   --loopback and --stress need virtual ports: CoreMIDI (macOS) or ALSA with /dev/snd/seq.
 
 Console.WriteLine($"Runtime:  {RuntimeInformation.RuntimeIdentifier} ({RuntimeInformation.OSDescription})");
 
 try
 {
+    return await Run(args);
+}
+catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
+{
+    return Ports.Fail($"native library could not be loaded: {ex}");
+}
+catch (RtMidiException ex)
+{
+    return Ports.Fail($"RtMidi error: {ex.Message}");
+}
+
+static async Task<int> Run(string[] args)
+{
     var version = MidiManager.GetRtMidiVersion();
     Console.WriteLine($"RtMidi:   {version}");
     if (string.IsNullOrWhiteSpace(version))
-        return Fail("empty RtMidi version");
+        return Ports.Fail("empty RtMidi version");
 
     var apis = MidiManager.GetAvailableApis();
     Console.WriteLine($"APIs:     {string.Join(", ", apis.Select(MidiManager.GetApiDisplayName))}");
     if (apis.Count == 0)
-        return Fail("no MIDI API compiled into the native library");
+        return Ports.Fail("no MIDI API compiled into the native library");
 
-    if (args.Contains("--devices") || args.Contains("--loopback"))
-    {
-        var devices = MidiManager.GetAvailableDevices();
-        Console.WriteLine($"Devices:  {devices.Count}");
-        foreach (var device in devices)
-            Console.WriteLine($"  [{device.Type}] {device.Port}: {device.Name} ({device.Api})");
-    }
+    var stressDuration = StressDuration(args);
+    if (args.Contains("--devices") || args.Contains("--loopback") || stressDuration is not null)
+        PrintDevices();
 
-    if (args.Contains("--loopback"))
-    {
-        var result = await RunLoopback();
-        if (result != 0) return result;
-    }
+    var result = args.Contains("--loopback") ? await RunLoopback() : 0;
+    if (result == 0 && stressDuration is { } duration)
+        result = await StressTest.Run(duration);
+    if (result != 0) return result;
+
+    Console.WriteLine("OK");
+    return 0;
 }
-catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
+
+// --stress [seconds]: null without the flag, 10 s when no time is given.
+static TimeSpan? StressDuration(string[] args)
 {
-    return Fail($"native library could not be loaded: {ex}");
-}
-catch (RtMidiException ex)
-{
-    return Fail($"RtMidi error: {ex.Message}");
+    var index = Array.IndexOf(args, "--stress");
+    if (index < 0) return null;
+    var seconds = index + 1 < args.Length && int.TryParse(args[index + 1], out var parsed) ? parsed : 10;
+    return TimeSpan.FromSeconds(seconds);
 }
 
-Console.WriteLine("OK");
-return 0;
+static void PrintDevices()
+{
+    var devices = MidiManager.GetAvailableDevices();
+    Console.WriteLine($"Devices:  {devices.Count}");
+    foreach (var device in devices)
+        Console.WriteLine($"  [{device.Type}] {device.Port}: {device.Name} ({device.Api})");
+}
 
 static async Task<int> RunLoopback()
 {
@@ -64,9 +84,9 @@ static async Task<int> RunLoopback()
     Console.WriteLine($"  opened virtual output port '{portName}'");
 
     // 2. Find it among the input ports (CoreMIDI may take a moment to publish it).
-    var source = await FindInputPort(portName);
+    var source = await Ports.FindInput(portName);
     if (source is null)
-        return Fail($"virtual port '{portName}' not found among input ports");
+        return Ports.Fail($"virtual port '{portName}' not found among input ports");
     Console.WriteLine($"  found it as input port {source.Port}: {source.Name}");
 
     // 3. Input client with the event enabled.
@@ -104,28 +124,15 @@ static async Task<int> RunLoopback()
     Console.WriteLine("  closed input and output");
 
     if (finished != gotBoth.Task)
-        return Fail($"timed out waiting for messages, received {received.Count} of 2");
+        return Ports.Fail($"timed out waiting for messages, received {received.Count} of 2");
 
     string? error;
     lock (received) error = CheckNoteOnOff(received, note);
     if (error is not null)
-        return Fail(error);
+        return Ports.Fail(error);
 
     Console.WriteLine("  loopback OK");
     return 0;
-}
-
-static async Task<MidiDeviceInfo?> FindInputPort(string portName)
-{
-    var stopwatch = Stopwatch.StartNew();
-    while (stopwatch.Elapsed < TimeSpan.FromSeconds(5))
-    {
-        var port = MidiManager.GetAvailableDevices()
-            .FirstOrDefault(d => d.Type == MidiDeviceType.Input && d.Name.Contains(portName));
-        if (port is not null) return port;
-        await Task.Delay(100);
-    }
-    return null;
 }
 
 static string? CheckNoteOnOff(IReadOnlyList<MidiMessage> received, MidiNote note)
@@ -138,10 +145,4 @@ static string? CheckNoteOnOff(IReadOnlyList<MidiMessage> received, MidiNote note
         || off.Note.GetByteRepresentation() != expected)
         return $"second message should be Note Off {expected}, got {received[1]}";
     return null;
-}
-
-static int Fail(string message)
-{
-    Console.Error.WriteLine($"FAILED: {message}");
-    return 1;
 }

@@ -14,9 +14,9 @@ namespace RtMidi.Net.Tests.Native;
 public class DummyApiTests
 {
     [NativeFact]
-    public void Version_IsRtMidi6()
+    public void Version_IsRtMidi61()
     {
-        Assert.StartsWith("6.", MidiManager.GetRtMidiVersion());
+        Assert.StartsWith("6.1.", MidiManager.GetRtMidiVersion());
     }
 
     [NativeFact]
@@ -34,6 +34,7 @@ public class DummyApiTests
         Assert.Equal("dummy", MidiManager.GetApiName(MidiApi.RtMidiDummy));
         Assert.Equal("Dummy", MidiManager.GetApiDisplayName(MidiApi.RtMidiDummy));
         Assert.Equal("alsa", MidiManager.GetApiName(MidiApi.LinuxAlsa));
+        Assert.Equal("winmidi2", MidiManager.GetApiName(MidiApi.WindowsMidiServices));
         Assert.Equal(string.Empty, MidiManager.GetApiName((MidiApi)200));
         Assert.Equal("Unknown", MidiManager.GetApiDisplayName((MidiApi)200));
     }
@@ -108,11 +109,11 @@ public class DummyApiTests
 #pragma warning disable S3966 // Objects should not be disposed more than once
         var rtMidiIn = new RtMidiIn();
         rtMidiIn.Dispose();
-        rtMidiIn.Dispose();
+        Assert.Null(Record.Exception(rtMidiIn.Dispose));
 
         var client = new MidiOutputClient();
         client.Dispose();
-        client.Dispose();
+        Assert.Null(Record.Exception(client.Dispose));
 #pragma warning restore S3966
     }
 
@@ -150,7 +151,9 @@ public class DummyApiTests
 
         client.Open();
         client.Open(); // already open: no-op
+        Assert.True(client.RtMidiClient.IsPortOpen);
         client.Close();
+        Assert.False(client.RtMidiClient.IsPortOpen);
     }
 
     [NativeFact]
@@ -181,7 +184,52 @@ public class DummyApiTests
     }
 
     [NativeFact]
-    public void InputClient_LateCallback_AfterCancelOrDispose_IsIgnored()
+    public void InputClient_Deactivated_QueuesMessagesForPolling()
+    {
+        using var client = new MidiInputClient();
+        var received = 0;
+        client.OnMessageReceived += (_, _) => received++;
+        client.ActivateMessageReceivedEvent();
+        var userData = ((RtMidiIn)client.RtMidiClient).CallbackUserData;
+
+        // The native callback stays set; without a handler the messages go to the queue.
+        client.DeactivateMessageReceivedEvent();
+        InvokeNativeCallback(0.25, [0x90, 60, 100], userData);
+
+        Assert.Equal(0, received);
+        Assert.True(client.TryGetMessage(out var message, out var timestamp));
+        Assert.Equal(new MidiMessageNote(MidiChannel.Channel01, new MidiNote(60), 100, MidiMessageType.NoteOn), message);
+        Assert.Equal(TimeSpan.FromSeconds(0.25), timestamp);
+        Assert.False(client.TryGetMessage(out _, out _));
+
+        // Activating again raises the event, and twice in a row is fine.
+        client.ActivateMessageReceivedEvent();
+        client.ActivateMessageReceivedEvent();
+        Assert.Equal(userData, ((RtMidiIn)client.RtMidiClient).CallbackUserData);
+        InvokeNativeCallback(0, [0xF8], userData);
+        Assert.Equal(1, received);
+
+        // Deactivating twice (or without activating) is fine too.
+        client.DeactivateMessageReceivedEvent();
+        client.DeactivateMessageReceivedEvent();
+    }
+
+    [NativeFact]
+    public void RtMidiIn_PendingQueue_RespectsTheQueueSizeLimit()
+    {
+        using var input = new RtMidiIn(MidiApi.RtMidiDummy, "Limit test", queueSizeLimit: 2);
+        input.SetCallback((_, _) => { });
+        input.CancelCallback();
+
+        for (byte i = 0; i < 5; i++) InvokeNativeCallback(i, [0xB0, 7, i], input.CallbackUserData);
+
+        Assert.Equal([0xB0, 7, 0], input.GetMessage().message);
+        Assert.Equal([0xB0, 7, 1], input.GetMessage().message);
+        Assert.Empty(input.GetMessage().message);
+    }
+
+    [NativeFact]
+    public void InputClient_LateCallback_AfterDispose_IsIgnored()
     {
         var client = new MidiInputClient();
         var received = 0;
@@ -190,9 +238,7 @@ public class DummyApiTests
         var userData = ((RtMidiIn)client.RtMidiClient).CallbackUserData;
         Assert.NotEqual(IntPtr.Zero, userData);
 
-        // RtMidi 6.0 does not wait for a running callback when it is cancelled or freed.
-        client.DeactivateMessageReceivedEvent();
-        InvokeNativeCallback(0, [0xF8], userData);
+        // A callback that was already running when the client was released.
         client.Dispose();
         InvokeNativeCallback(0, [0xF8], userData);
 
@@ -232,8 +278,9 @@ public class DummyApiTests
         client.ActivateMessageReceivedEvent();
 
         // Would terminate the process if the exception crossed the native boundary.
-        InvokeNativeCallback(0, [0xF8], ((RtMidiIn)client.RtMidiClient).CallbackUserData);
-        InvokeNativeCallback(0, [0xF8], IntPtr.Zero);
+        var userData = ((RtMidiIn)client.RtMidiClient).CallbackUserData;
+        Assert.Null(Record.Exception(() => InvokeNativeCallback(0, [0xF8], userData)));
+        Assert.Null(Record.Exception(() => InvokeNativeCallback(0, [0xF8], IntPtr.Zero)));
     }
 
     [NativeFact]
@@ -250,26 +297,34 @@ public class DummyApiTests
     }
 
     [NativeFact]
-    public void GetMessage_CopiesQueuedMessages_AndSkipsOversizedOnes()
+    public void GetMessage_CopiesQueuedMessages_AndGrowsTheBufferForLongOnes()
     {
         using var input = new RtMidiIn(MidiApi.RtMidiDummy, "Queue test");
-        var exactSize = new byte[RtMidiIn.MessageBufferSize];
-        exactSize[0] = 0xF0;
-        exactSize[^1] = 0xF7;
+        var exactSize = SysEx(RtMidiIn.InitialMessageBufferSize);
+        var longSysEx = SysEx(100_000);
         var queue = new FakeNativeQueue(
             (0.25, [0x90, 60, 100]),
             (0.5, exactSize),
-            (1.0, new byte[RtMidiIn.MessageBufferSize + 1]),
+            (1.0, longSysEx),
             (2.0, [0xB0, 7, 64]));
 
         AssertNextMessage(input, queue, [0x90, 60, 100], 0.25);
         AssertNextMessage(input, queue, exactSize, 0.5);
-        // Too big for the buffer: RtMidi removes it from the queue without copying it.
-        AssertNextMessage(input, queue, [], 1.0);
+        // Too big for the buffer: RtMidi keeps it queued and it is read again with a larger buffer.
+        AssertNextMessage(input, queue, longSysEx, 1.0);
         // The next message is read normally, with nothing left from the previous ones.
         AssertNextMessage(input, queue, [0xB0, 7, 64], 2.0);
         // Empty queue.
         AssertNextMessage(input, queue, [], 0.0);
+        Assert.Equal(2, queue.Reads(longSysEx));
+    }
+
+    private static byte[] SysEx(int length)
+    {
+        var message = new byte[length];
+        message[0] = 0xF0;
+        message[^1] = 0xF7;
+        return message;
     }
 
     private static void AssertNextMessage(RtMidiIn input, FakeNativeQueue queue, byte[] expectedMessage, double expectedTimestamp)
@@ -280,21 +335,34 @@ public class DummyApiTests
     }
 
     /// <summary>
-    /// Behaves like <c>rtmidi_in_get_message</c> in RtMidi 6.0.
+    /// Behaves like <c>rtmidi_in_get_message</c> in RtMidi 6.1, except that it does not
+    /// set the error status of the wrapper.
     /// </summary>
     private sealed class FakeNativeQueue(params (double Timestamp, byte[] Message)[] messages)
     {
         private readonly Queue<(double Timestamp, byte[] Message)> _messages = new(messages);
+        private readonly Dictionary<byte[], int> _reads = new(ReferenceEqualityComparer.Instance);
+
+        public int Reads(byte[] message) => _reads.GetValueOrDefault(message);
 
         public double Read(byte[] buffer, ref nuint size)
         {
-            if (!_messages.TryDequeue(out var next))
+            if (!_messages.TryPeek(out var next))
             {
                 size = 0;
                 return 0;
             }
 
-            if (next.Message.Length <= (int)size) next.Message.CopyTo(buffer, 0);
+            _reads[next.Message] = Reads(next.Message) + 1;
+            if (next.Message.Length > (int)size)
+            {
+                // Kept for the next call.
+                size = (nuint)next.Message.Length;
+                return -1;
+            }
+
+            _messages.Dequeue();
+            next.Message.CopyTo(buffer, 0);
             size = (nuint)next.Message.Length;
             return next.Timestamp;
         }

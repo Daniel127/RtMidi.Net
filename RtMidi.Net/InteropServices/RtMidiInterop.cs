@@ -8,7 +8,7 @@ using System.Runtime.InteropServices;
 namespace RtMidi.Net.InteropServices;
 
 /// <summary>
-/// Native functions of the RtMidi C API (<c>rtmidi_c.h</c>, RtMidi 6.0).
+/// Native functions of the RtMidi C API (<c>rtmidi_c.h</c>, RtMidi 6.1).
 /// </summary>
 /// <remarks>
 /// <para>Types follow the C header exactly:</para>
@@ -67,7 +67,7 @@ internal static partial class RtMidiInterop
     internal static partial IntPtr rtmidi_get_version();
 
     /// <summary>
-    /// Return the compiled MIDI API having the given short name (case-sensitive in RtMidi 6.0),
+    /// Return the compiled MIDI API having the given short name (case-sensitive),
     /// or <c>RTMIDI_API_UNSPECIFIED</c> if none matches.
     /// </summary>
     [LibraryImport(RtMidiLibrary, StringMarshalling = StringMarshalling.Utf8)]
@@ -181,7 +181,8 @@ internal static partial class RtMidiInterop
     /// <param name="device">The RtMidiIn wrapper</param>
     /// <param name="message">Buffer for the message.</param>
     /// <param name="size">In: size of <paramref name="message"/>. Out: size of the message
-    /// (0 if the queue is empty). If it is larger than the buffer, nothing is copied.</param>
+    /// (0 if the queue is empty). If it is larger than the buffer, nothing is copied, the
+    /// message stays queued for the next call and the call fails (returns -1).</param>
     [LibraryImport(RtMidiLibrary)]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial double rtmidi_in_get_message(IntPtr device, [Out] byte[] message, ref nuint size);
@@ -223,7 +224,7 @@ internal static partial class RtMidiInterop
     /// </summary>
     [LibraryImport(RtMidiLibrary)]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static partial int rtmidi_out_send_message(IntPtr device, byte[] message, int length);
+    internal static partial int rtmidi_out_send_message(IntPtr device, [In] byte[] message, int length);
 
     #endregion
 }

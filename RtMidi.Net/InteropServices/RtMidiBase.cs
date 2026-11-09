@@ -36,18 +36,25 @@ internal abstract class RtMidiBase : IDisposable
 
     #region Errors
 
-    // Layout of the native RtMidiWrapper struct (rtmidi_c.h, RtMidi 6.0):
-    //   void* ptr; void* data; bool ok; const char* msg;
-    // ok is a 1-byte C bool right after the two pointers; msg is pointer-aligned after it.
-    private static readonly int OkOffset = 2 * IntPtr.Size;
-    private static readonly int MsgOffset = 3 * IntPtr.Size;
+    // Layout of the native RtMidiWrapper struct (rtmidi_c.h, RtMidi 6.1):
+    //   void* ptr; void* callback_proxy; void* error_callback_proxy; bool ok; char* msg;
+    // ok is a 1-byte C bool right after the three pointers; msg is pointer-aligned after it.
+    private static readonly int OkOffset = 3 * IntPtr.Size;
+    private static readonly int MsgOffset = 4 * IntPtr.Size;
 
-    private const string GenericError = "RtMidi reported an error (RtMidi prints the details to stderr).";
+    private const string GenericError = "RtMidi reported an error.";
 
     private static bool IsOk(IntPtr wrapper) => Marshal.ReadByte(wrapper, OkOffset) != 0;
 
-    private static string ReadError(IntPtr wrapper) =>
-        ReadErrorMessage(Marshal.ReadIntPtr(wrapper, MsgOffset)) ?? GenericError;
+    /// <summary>
+    /// Reads the error text of the wrapper. Since RtMidi 6.1 it is a copy owned by
+    /// the wrapper, valid until the next call on the same device.
+    /// </summary>
+    private static string ReadError(IntPtr wrapper)
+    {
+        var text = Marshal.PtrToStringUTF8(Marshal.ReadIntPtr(wrapper, MsgOffset));
+        return string.IsNullOrEmpty(text) ? GenericError : text;
+    }
 
     /// <summary>
     /// Checks the result of an <c>rtmidi_*_create</c> call. If the native object
@@ -66,43 +73,22 @@ internal abstract class RtMidiBase : IDisposable
     }
 
     /// <summary>
-    /// Reads the error text of the wrapper.
-    /// </summary>
-    /// <remarks>
-    /// RtMidi 6.0 stores err.what() of an exception that is already destroyed,
-    /// so the text may be garbage. Read it defensively and only use it when it
-    /// looks like real text; RtMidi also prints the error to stderr.
-    /// </remarks>
-    private static string? ReadErrorMessage(IntPtr msgPtr)
-    {
-        if (msgPtr == IntPtr.Zero) return null;
-
-        const int maxLength = 512;
-        var text = new StringBuilder();
-        for (var i = 0; i < maxLength; i++)
-        {
-            var b = Marshal.ReadByte(msgPtr, i);
-            if (b == 0) return text.Length > 0 ? text.ToString() : null;
-            // Printable ASCII only: RtMidi messages are plain English text.
-            if (b is < 0x20 or > 0x7E) return null;
-            text.Append((char)b);
-        }
-
-        return null;
-    }
-
-    /// <summary>
     /// Throws <see cref="RtMidiException"/> if the last native call failed.
     /// </summary>
+    /// <remarks>
+    /// Only valid right after a C API function that resets the status on entry
+    /// (all of them except <c>rtmidi_in_ignore_types</c> and <c>rtmidi_set_error_callback</c>).
+    /// </remarks>
     protected void ThrowIfError()
     {
         if (IsOk(RtMidiPtr)) return;
-
-        var error = ReadError(RtMidiPtr);
-        // The C API never resets the flag on success, so clear it here.
-        Marshal.WriteByte(RtMidiPtr, OkOffset, 1);
-        throw new RtMidiException(error);
+        throw new RtMidiException(ReadError(RtMidiPtr));
     }
+
+    /// <summary>
+    /// true if the last native call succeeded (for callers that handle the error themselves).
+    /// </summary>
+    protected bool LastCallSucceeded => IsOk(RtMidiPtr);
 
     #endregion
 
@@ -292,7 +278,7 @@ internal abstract class RtMidiBase : IDisposable
     /// </summary>
     /// <remarks>
     /// The name is compared with the short names of the compiled APIs
-    /// (see <see cref="GetApiName"/>); RtMidi 6.0 compares them case-sensitively.
+    /// (see <see cref="GetApiName"/>), case-sensitively.
     /// </remarks>
     /// <param name="name">The API name</param>
     /// <returns>
