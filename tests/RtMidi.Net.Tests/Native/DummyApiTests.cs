@@ -109,11 +109,11 @@ public class DummyApiTests
 #pragma warning disable S3966 // Objects should not be disposed more than once
         var rtMidiIn = new RtMidiIn();
         rtMidiIn.Dispose();
-        rtMidiIn.Dispose();
+        Assert.Null(Record.Exception(rtMidiIn.Dispose));
 
         var client = new MidiOutputClient();
         client.Dispose();
-        client.Dispose();
+        Assert.Null(Record.Exception(client.Dispose));
 #pragma warning restore S3966
     }
 
@@ -151,7 +151,9 @@ public class DummyApiTests
 
         client.Open();
         client.Open(); // already open: no-op
+        Assert.True(client.RtMidiClient.IsPortOpen);
         client.Close();
+        Assert.False(client.RtMidiClient.IsPortOpen);
     }
 
     [NativeFact]
@@ -276,8 +278,9 @@ public class DummyApiTests
         client.ActivateMessageReceivedEvent();
 
         // Would terminate the process if the exception crossed the native boundary.
-        InvokeNativeCallback(0, [0xF8], ((RtMidiIn)client.RtMidiClient).CallbackUserData);
-        InvokeNativeCallback(0, [0xF8], IntPtr.Zero);
+        var userData = ((RtMidiIn)client.RtMidiClient).CallbackUserData;
+        Assert.Null(Record.Exception(() => InvokeNativeCallback(0, [0xF8], userData)));
+        Assert.Null(Record.Exception(() => InvokeNativeCallback(0, [0xF8], IntPtr.Zero)));
     }
 
     [NativeFact]

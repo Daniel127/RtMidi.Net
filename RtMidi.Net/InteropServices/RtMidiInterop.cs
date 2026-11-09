@@ -224,7 +224,7 @@ internal static partial class RtMidiInterop
     /// </summary>
     [LibraryImport(RtMidiLibrary)]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static partial int rtmidi_out_send_message(IntPtr device, byte[] message, int length);
+    internal static partial int rtmidi_out_send_message(IntPtr device, [In] byte[] message, int length);
 
     #endregion
 }
