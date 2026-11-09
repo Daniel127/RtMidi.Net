@@ -16,6 +16,16 @@ public readonly struct MidiNote
     /// </summary>
     public const int DefaultMiddleCOctave = 4;
 
+    /// <summary>
+    /// Lowest octave number accepted for middle C by <see cref="GetName"/>, <see cref="Parse"/> and <see cref="TryParse"/>.
+    /// </summary>
+    public const int MinMiddleCOctave = -10;
+
+    /// <summary>
+    /// Highest octave number accepted for middle C by <see cref="GetName"/>, <see cref="Parse"/> and <see cref="TryParse"/>.
+    /// </summary>
+    public const int MaxMiddleCOctave = 10;
+
     private const byte MaxNoteNumber = 127;
     private const int NotesPerOctave = 12;
 
@@ -93,12 +103,15 @@ public readonly struct MidiNote
     /// <param name="useLatinName">Use the latin representation (Do, Re, Mi...)</param>
     /// <param name="middleCOctave">The octave number given to middle C. The default, 4, is
     /// scientific pitch notation (ISO); some software uses 3 (e.g. Yamaha, Ableton) or 5.
-    /// It only changes the text, never the MIDI note.</param>
+    /// It only changes the text, never the MIDI note. Between <see cref="MinMiddleCOctave"/> and <see cref="MaxMiddleCOctave"/>.</param>
     /// <returns>The note name, e.g. <c>C#4</c>, <c>Do#4</c> or <c>C-1</c></returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="middleCOctave"/> is outside
+    /// <see cref="MinMiddleCOctave"/> to <see cref="MaxMiddleCOctave"/>.</exception>
     public string GetName(bool useLatinName = false, int middleCOctave = DefaultMiddleCOctave)
     {
+        ValidateMiddleCOctave(middleCOctave);
         var names = useLatinName ? LatinNames : EnglishNames;
-        var octave = (long)Octave - MiddleCOctaveValue + middleCOctave;
+        var octave = (int)Octave - MiddleCOctaveValue + middleCOctave;
         return string.Create(CultureInfo.InvariantCulture, $"{names[(int)Note]}{octave}");
     }
 
@@ -112,10 +125,13 @@ public readonly struct MidiNote
     /// 4 (default) is scientific pitch notation.</param>
     /// <returns>The note.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="name"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="middleCOctave"/> is outside
+    /// <see cref="MinMiddleCOctave"/> to <see cref="MaxMiddleCOctave"/>.</exception>
     /// <exception cref="FormatException">The name is not a note, or it is outside MIDI notes 0 to 127.</exception>
     public static MidiNote Parse(string name, int middleCOctave = DefaultMiddleCOctave)
     {
         ArgumentNullException.ThrowIfNull(name);
+        ValidateMiddleCOctave(middleCOctave);
         return TryParse(name, out var note, middleCOctave)
             ? note
             : throw new FormatException($"'{name}' is not a note between MIDI notes 0 and 127 (e.g. C4, Do#4, Bb3).");
@@ -128,8 +144,11 @@ public readonly struct MidiNote
     /// <param name="note">The note, when the name is valid.</param>
     /// <param name="middleCOctave">The octave number that <paramref name="name"/> uses for middle C.</param>
     /// <returns><see langword="true"/> if the name is a note between MIDI notes 0 and 127.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="middleCOctave"/> is outside
+    /// <see cref="MinMiddleCOctave"/> to <see cref="MaxMiddleCOctave"/> (a wrong setting, not a wrong name).</exception>
     public static bool TryParse([NotNullWhen(true)] string? name, out MidiNote note, int middleCOctave = DefaultMiddleCOctave)
     {
+        ValidateMiddleCOctave(middleCOctave);
         note = default;
         if (string.IsNullOrWhiteSpace(name)) return false;
         var text = name.AsSpan().Trim();
@@ -151,7 +170,8 @@ public readonly struct MidiNote
             text = text[1..];
         }
 
-        // Only an optional '-' and digits: no '+', spaces or other signs.
+        // Only an optional '-' and digits: no '+', spaces or other signs. With middle C between
+        // -10 and 10, every valid name has an octave of at most 2 digits; 3 leaves room for leading zeros.
         var digits = text.StartsWith("-") ? text[1..] : text;
         if (digits.IsEmpty || digits.Length > 3) return false;
         foreach (var c in digits)
@@ -160,12 +180,19 @@ public readonly struct MidiNote
         }
         var octave = int.Parse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture);
 
-        // long: neither a large middleCOctave nor many accidentals can overflow.
+        // long: many accidentals cannot overflow.
         var number = ((long)octave - middleCOctave + MiddleCOctaveValue) * NotesPerOctave + pitchClass + accidental;
         if (number is < 0 or > MaxNoteNumber) return false;
 
         note = new MidiNote((byte)number);
         return true;
+    }
+
+    private static void ValidateMiddleCOctave(int middleCOctave, [System.Runtime.CompilerServices.CallerArgumentExpression(nameof(middleCOctave))] string? paramName = null)
+    {
+        if (middleCOctave is < MinMiddleCOctave or > MaxMiddleCOctave)
+            throw new ArgumentOutOfRangeException(paramName, middleCOctave,
+                $"The octave of middle C must be between {MinMiddleCOctave} and {MaxMiddleCOctave} (4 is scientific pitch notation).");
     }
 
     /// <inheritdoc />

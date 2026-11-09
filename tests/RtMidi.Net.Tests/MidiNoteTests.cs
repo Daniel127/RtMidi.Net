@@ -259,11 +259,38 @@ public class MidiNoteTests
         Assert.False(MidiNote.TryParse(null, out _));
     }
 
-    [Fact]
-    public void Parse_HugeMiddleCOctave_DoesNotOverflow()
+    [Theory]
+    [InlineData(MidiNote.MinMiddleCOctave - 1)]
+    [InlineData(MidiNote.MaxMiddleCOctave + 1)]
+    [InlineData(1000)]
+    [InlineData(int.MinValue)]
+    [InlineData(int.MaxValue)]
+    public void MiddleCOctave_OutOfRange_Throws(int middleCOctave)
     {
-        Assert.False(MidiNote.TryParse("C4", out _, int.MinValue));
-        Assert.False(MidiNote.TryParse("C4", out _, int.MaxValue));
-        Assert.Equal($"C{(long)int.MaxValue}", new MidiNote(60).GetName(middleCOctave: int.MaxValue));
+        var note = new MidiNote(60);
+        Assert.Throws<ArgumentOutOfRangeException>(() => note.GetName(middleCOctave: middleCOctave));
+        Assert.Throws<ArgumentOutOfRangeException>(() => MidiNote.Parse("C4", middleCOctave));
+        Assert.Throws<ArgumentOutOfRangeException>(() => MidiNote.TryParse("C4", out _, middleCOctave));
+    }
+
+    [Fact]
+    public void Parse_LeadingZeros()
+    {
+        Assert.Equal(60, MidiNote.Parse("C04").Number);
+        Assert.Equal(0, MidiNote.Parse("C-01").Number);
+    }
+
+    [Fact]
+    public void GetName_Parse_RoundTrip_EveryAllowedMiddleCOctave()
+    {
+        for (var middleCOctave = MidiNote.MinMiddleCOctave; middleCOctave <= MidiNote.MaxMiddleCOctave; middleCOctave++)
+        {
+            for (byte number = 0; number <= 127; number++)
+            {
+                var note = new MidiNote(number);
+                Assert.Equal(note, MidiNote.Parse(note.GetName(middleCOctave: middleCOctave), middleCOctave));
+                Assert.Equal(note, MidiNote.Parse(note.GetName(useLatinName: true, middleCOctave: middleCOctave), middleCOctave));
+            }
+        }
     }
 }

@@ -64,7 +64,7 @@ if (message is MidiMessageNote { Type: MidiMessageType.NoteOn } note)
 
 ``MidiNote`` uses scientific pitch notation (ISO): MIDI note 60 (middle C) is ``C4``, 69 (A440) is ``A4``, 0 is ``C-1`` and 127 is ``G9``. ``MusicOctave`` follows it too (``MusicOctave.Octave4`` is the octave of middle C).
 
-Some software numbers octaves differently (middle C as ``C3`` in Yamaha or Ableton, ``C5`` in others, or ``Do3`` in Spanish conservatories). That only changes the text, so ``GetName`` and ``Parse`` take the octave of middle C:
+Some software numbers octaves differently (middle C as ``C3`` in Yamaha or Ableton, ``C5`` in others, or ``Do3`` in Spanish conservatories). That only changes the text, so ``GetName`` and ``Parse`` take the octave of middle C (from -10 to 10):
 
 ```csharp
 var note = new MidiNote(60);
