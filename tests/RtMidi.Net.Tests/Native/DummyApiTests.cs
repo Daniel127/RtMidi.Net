@@ -251,6 +251,39 @@ public class DummyApiTests
     }
 
     [NativeFact]
+    public void InputClient_Unsubscribe_AfterDispose_OnlyChangesTheHandlers()
+    {
+        var client = new MidiInputClient();
+        EventHandler<MidiMessageReceivedEventArgs> first = (_, _) => { };
+        EventHandler<MidiMessageReceivedEventArgs> second = (_, _) => { };
+        client.MessageReceived += first;
+        client.MessageReceived += second;
+
+        client.Dispose();
+
+        // One handler is left, so this would set the native callback again on the freed object.
+        Assert.Null(Record.Exception(() => client.MessageReceived -= first));
+        Assert.Null(Record.Exception(() => client.MessageReceived -= second));
+        Assert.Throws<ObjectDisposedException>(() => client.MessageReceived += first);
+    }
+
+    [NativeFact]
+    public void Clients_AfterDispose_ThrowObjectDisposedException()
+    {
+        var input = new MidiInputClient();
+        input.Dispose();
+        Assert.Throws<ObjectDisposedException>(() => input.TryGetMessage(out _, out _));
+        Assert.Throws<ObjectDisposedException>(() => input.IgnoreSysexMessages = false);
+        Assert.Throws<ObjectDisposedException>(() => input.OpenVirtual("Disposed"));
+        Assert.Null(Record.Exception(input.Close));
+
+        var output = new MidiOutputClient();
+        output.Dispose();
+        Assert.Throws<ObjectDisposedException>(() => output.SendMessage([0xF8]));
+        Assert.Null(Record.Exception(output.Close));
+    }
+
+    [NativeFact]
     public void RtMidiIn_WithCallback_IsNotKeptAliveByTheRegistration()
     {
         var reference = CreateInputWithCallback();

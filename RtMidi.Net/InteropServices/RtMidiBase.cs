@@ -8,8 +8,26 @@ namespace RtMidi.Net.InteropServices;
 /// </summary>
 internal abstract class RtMidiBase : IDisposable
 {
-    protected readonly IntPtr RtMidiPtr;
+    private readonly IntPtr _rtMidiPtr;
     private bool _disposed;
+
+    /// <summary>
+    /// The native RtMidi wrapper.
+    /// </summary>
+    /// <exception cref="ObjectDisposedException">The object was disposed, so the wrapper has been freed.</exception>
+    protected IntPtr RtMidiPtr
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return _rtMidiPtr;
+        }
+    }
+
+    /// <summary>
+    /// true once the native object has been released.
+    /// </summary>
+    public bool IsDisposed => _disposed;
 
     /// <summary>
     /// Check if a port is open.
@@ -29,7 +47,7 @@ internal abstract class RtMidiBase : IDisposable
 
     protected RtMidiBase(IntPtr rtMidiPtr)
     {
-        RtMidiPtr = rtMidiPtr;
+        _rtMidiPtr = rtMidiPtr;
         IsPortOpen = false;
     }
 
@@ -178,7 +196,8 @@ internal abstract class RtMidiBase : IDisposable
     /// <summary>
     /// Release the unmanaged resources (the native RtMidi object).
     /// </summary>
-    protected abstract void ReleaseUnmanagedResources();
+    /// <param name="rtMidiPtr">The native wrapper to free (<see cref="RtMidiPtr"/> throws at this point).</param>
+    protected abstract void ReleaseUnmanagedResources(IntPtr rtMidiPtr);
 
     /// <summary>
     /// Dispose pattern.
@@ -188,9 +207,9 @@ internal abstract class RtMidiBase : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        // RtMidiPtr is zero when construction failed in EnsureCreated (the
+        // The pointer is zero when construction failed in EnsureCreated (the
         // wrapper was already freed there), so there is nothing to release.
-        if (RtMidiPtr != IntPtr.Zero) ReleaseUnmanagedResources();
+        if (_rtMidiPtr != IntPtr.Zero) ReleaseUnmanagedResources(_rtMidiPtr);
     }
 
     /// <inheritdoc />

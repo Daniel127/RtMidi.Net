@@ -27,6 +27,7 @@ public sealed class MidiInputClient : MidiClient
     private readonly RtMidiIn _rtMidiInClient;
     private readonly object _eventLock = new();
     private EventHandler<MidiMessageReceivedEventArgs>? _messageReceived;
+    private bool _disposed; // guarded by _eventLock, so no subscription change reaches a freed native object
     private bool _ignoreSysexMessages = true;
     private bool _ignoreTimeMessages = true;
     private bool _ignoreSenseMessages = true;
@@ -81,6 +82,10 @@ public sealed class MidiInputClient : MidiClient
     /// so no message is queued in between.
     /// </para>
     /// <para>
+    /// Subscribing after <see cref="MidiClient.Dispose()"/> throws <see cref="ObjectDisposedException"/>;
+    /// unsubscribing is always allowed.
+    /// </para>
+    /// <para>
     /// The timestamp is the delta-time since the previous message. An exception thrown
     /// by a handler is caught and written to <see cref="System.Diagnostics.Trace"/>,
     /// because it can't propagate through the native library.
@@ -92,6 +97,7 @@ public sealed class MidiInputClient : MidiClient
         {
             lock (_eventLock)
             {
+                ObjectDisposedException.ThrowIf(_disposed, this);
                 var previous = _messageReceived;
                 _messageReceived += value;
                 if (ReferenceEquals(previous, _messageReceived)) return;
@@ -111,7 +117,8 @@ public sealed class MidiInputClient : MidiClient
             lock (_eventLock)
             {
                 _messageReceived -= value;
-                UpdateCallback();
+                // After disposal only the managed list changes: the native object is gone.
+                if (!_disposed) UpdateCallback();
             }
         }
     }
@@ -133,6 +140,21 @@ public sealed class MidiInputClient : MidiClient
     public MidiInputClient(MidiDeviceInfo deviceInfo) : base(deviceInfo, new RtMidiIn())
     {
         _rtMidiInClient = (RtMidiIn)RtMidiClient;
+    }
+
+    /// <inheritdoc />
+    protected override void Dispose(bool disposing)
+    {
+        // Mark the client as disposed under the event lock, so a concurrent subscription change either
+        // finishes before the native object is freed or sees the flag. The native object is freed
+        // outside the lock: a handler running on RtMidi's thread may unsubscribe while Dispose waits
+        // for that thread to stop.
+        lock (_eventLock)
+        {
+            _disposed = true;
+        }
+
+        base.Dispose(disposing);
     }
 
     private void UpdateIgnoredTypes()

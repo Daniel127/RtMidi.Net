@@ -7,7 +7,8 @@ namespace RtMidi.Net;
 /// </summary>
 /// <remarks>
 /// Each client owns a native RtMidi object, so dispose it when done (this also closes the port).
-/// A client can be opened, closed and opened again.
+/// A client can be opened, closed and opened again. After <see cref="Dispose()"/>, its members throw
+/// <see cref="ObjectDisposedException"/>, except <see cref="Close"/> and <see cref="Dispose()"/>, which do nothing.
 /// </remarks>
 public abstract class MidiClient : IDisposable
 {
@@ -53,10 +54,11 @@ public abstract class MidiClient : IDisposable
     }
 
     /// <summary>
-    /// Closes the port (device or virtual) if one is open.
+    /// Closes the port (device or virtual) if one is open. Does nothing after <see cref="Dispose()"/>.
     /// </summary>
     public void Close()
     {
+        if (RtMidiClient.IsDisposed) return;
         RtMidiClient.ClosePort();
     }
 

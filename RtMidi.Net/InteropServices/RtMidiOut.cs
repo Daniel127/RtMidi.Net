@@ -56,8 +56,8 @@ internal sealed class RtMidiOut : RtMidiBase
     }
 
     /// <inheritdoc />
-    protected override void ReleaseUnmanagedResources()
+    protected override void ReleaseUnmanagedResources(IntPtr rtMidiPtr)
     {
-        RtMidiInterop.rtmidi_out_free(RtMidiPtr);
+        RtMidiInterop.rtmidi_out_free(rtMidiPtr);
     }
 }

@@ -77,6 +77,8 @@ It has breaking changes: see the [migration guide](MIGRATION.md) to update from 
   `System.Diagnostics.Trace`).
 - Disposing an input client while a message is being delivered no longer crashes, and an input client with
   a handler can be garbage collected.
+- Using a client after `Dispose` throws `ObjectDisposedException` instead of reaching the freed native
+  object. `Close`, `Dispose` and unsubscribing from `MessageReceived` still work after it.
 - Port names, the list of compiled APIs and opening a port without a name are read correctly from RtMidi.
 
 ## [1.3.0] - 2023-09-06
