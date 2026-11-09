@@ -11,13 +11,15 @@ public class MidiMessageReceivedEventArgs : EventArgs
     public MidiMessage Message { get; }
 
     /// <summary>
-    /// Delta-time since the previous message, as reported by RtMidi.
+    /// Delta-time since the previous message, as reported by RtMidi (zero for the first message).
     /// </summary>
     public TimeSpan Timestamp { get; }
 
     /// <summary>
     /// Creates the event data.
     /// </summary>
+    /// <param name="message">The decoded message.</param>
+    /// <param name="timestamp">Delta-time since the previous message.</param>
     public MidiMessageReceivedEventArgs(MidiMessage message, TimeSpan timestamp)
     {
         Message = message;

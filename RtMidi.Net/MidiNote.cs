@@ -8,6 +8,19 @@ namespace RtMidi.Net;
 /// A MIDI note number (0-127) as a note and an octave, in scientific pitch notation (ISO):
 /// 0 is C-1, 60 (middle C) is C4, 69 (A440) is A4 and 127 is G9.
 /// </summary>
+/// <remarks>
+/// The octave numbering only changes names: <see cref="Number"/> is the same whatever numbering is used
+/// to show or read the note. <c>default(MidiNote)</c> is MIDI note 0 (C-1).
+/// </remarks>
+/// <example>
+/// <code>
+/// var middleC = new MidiNote(60);
+/// string name = middleC.GetName();                          // "C4"
+/// string latin = middleC.GetName(useLatinName: true);       // "Do4"
+/// var a440 = new MidiNote(MusicNote.A, MusicOctave.Octave4); // MIDI note 69
+/// byte bFlat = MidiNote.Parse("Bb3").Number;                 // 58
+/// </code>
+/// </example>
 public readonly struct MidiNote
 {
     /// <summary>
@@ -45,12 +58,13 @@ public readonly struct MidiNote
     ];
 
     /// <summary>
-    /// The note
+    /// The note inside the octave (C to B), always one of the English names; the Latin names of
+    /// <see cref="MusicNote"/> are aliases with the same values.
     /// </summary>
     public MusicNote Note { get; }
 
     /// <summary>
-    /// The octave
+    /// The octave, in scientific pitch notation (middle C is in <see cref="MusicOctave.Octave4"/>).
     /// </summary>
     public MusicOctave Octave { get; }
 
@@ -60,9 +74,9 @@ public readonly struct MidiNote
     public byte Number => GetByteRepresentation();
 
     /// <summary>
-    /// Create a MidiNote
+    /// Creates the note from its MIDI note number.
     /// </summary>
-    /// <param name="note">Number in range 0 - 127</param>
+    /// <param name="note">The MIDI note number, 0 to 127 (60 is middle C, C4).</param>
     /// <exception cref="ArgumentOutOfRangeException">The number is above 127.</exception>
     public MidiNote(byte note)
     {
@@ -72,9 +86,9 @@ public readonly struct MidiNote
     }
 
     /// <summary>
-    /// Create a MidiNote
+    /// Creates the note from a note and an octave.
     /// </summary>
-    /// <param name="note">The note</param>
+    /// <param name="note">The note inside the octave.</param>
     /// <param name="octave">The octave, in scientific pitch notation (middle C is C in <see cref="MusicOctave.Octave4"/>)</param>
     /// <exception cref="ArgumentOutOfRangeException">The note is not a valid <see cref="MusicNote"/>,
     /// or the result is above MIDI note 127 (G9).</exception>
@@ -89,9 +103,9 @@ public readonly struct MidiNote
     }
 
     /// <summary>
-    /// Get Byte for MIDI message
+    /// Returns the MIDI note number (0-127), the data byte sent in note messages. Same as <see cref="Number"/>.
     /// </summary>
-    /// <returns>The MIDI byte representation</returns>
+    /// <returns>The MIDI note number.</returns>
     public byte GetByteRepresentation()
     {
         return (byte)((byte)Note + (byte)Octave * NotesPerOctave);
@@ -100,7 +114,8 @@ public readonly struct MidiNote
     /// <summary>
     /// Returns the note name, e.g. <c>C4</c> or <c>Do4</c> for middle C (MIDI note 60).
     /// </summary>
-    /// <param name="useLatinName">Use the latin representation (Do, Re, Mi...)</param>
+    /// <param name="useLatinName"><see langword="true"/> for Latin names (Do, Re, Mi...), <see langword="false"/>
+    /// (default) for English names (C, D, E...). Accidentals are always written as sharps (<c>#</c>).</param>
     /// <param name="middleCOctave">The octave number given to middle C. The default, 4, is
     /// scientific pitch notation (ISO); some software uses 3 (e.g. Yamaha, Ableton) or 5.
     /// It only changes the text, never the MIDI note. Between <see cref="MinMiddleCOctave"/> and <see cref="MaxMiddleCOctave"/>.</param>
@@ -221,6 +236,10 @@ public readonly struct MidiNote
                 $"The octave of middle C must be between {MinMiddleCOctave} and {MaxMiddleCOctave} (4 is scientific pitch notation).");
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Returns the English name in scientific pitch notation, e.g. <c>C4</c> for MIDI note 60.
+    /// Same as <see cref="GetName"/> with its default arguments.
+    /// </summary>
+    /// <returns>The note name.</returns>
     public override string ToString() => GetName();
 }
