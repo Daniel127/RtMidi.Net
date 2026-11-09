@@ -43,12 +43,12 @@ jobs:
             platform: linux/arm/v7
             qemu: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: true
       - name: Set up QEMU
         if: matrix.qemu
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
       # Ubuntu 20.04 (glibc 2.31, still served by the Ubuntu archive) keeps the library loadable on older distros
       # such as Raspberry Pi OS 11.
       - name: Build librtmidi.so
@@ -56,7 +56,7 @@ jobs:
           docker run --rm --platform ${{ matrix.platform }} \
             -v "$PWD:/src" -w /src ubuntu:20.04 \
             bash .github/scripts/build-rtmidi-linux.sh artifacts/native/${{ matrix.rid }}/native
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: native-${{ matrix.rid }}
           path: artifacts/native
@@ -79,19 +79,24 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: true
       # Static MSVC runtime so users don't need the VC++ redistributable.
+      # LNK4197 (x86 only): RtMidi exports its vtables both through
+      # dllexport and its own export list; the linker keeps the first, so the
+      # duplicate is harmless and not ours to fix. (-IGNORE, not /IGNORE, so Git
+      # Bash does not turn it into a path.)
       - name: Build rtmidi.dll
         run: |
           cmake -S external/rtmidi -B build -A ${{ matrix.arch }} \
             -DRTMIDI_BUILD_TESTING=OFF -DRTMIDI_API_JACK=OFF \
-            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded \
+            -DCMAKE_SHARED_LINKER_FLAGS=-IGNORE:4197
           cmake --build build --config Release
           mkdir -p artifacts/native/${{ matrix.rid }}/native
           cp build/Release/rtmidi.dll artifacts/native/${{ matrix.rid }}/native/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: native-${{ matrix.rid }}
           path: artifacts/native
@@ -101,7 +106,7 @@ jobs:
     name: RtMidi osx (universal)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: true
       - name: Build librtmidi.dylib (arm64 + x86_64)
@@ -114,7 +119,7 @@ jobs:
           mkdir -p artifacts/native/osx/native
           cp -L build/librtmidi.dylib artifacts/native/osx/native/librtmidi.dylib
           lipo -info artifacts/native/osx/native/librtmidi.dylib
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: native-osx
           path: artifacts/native
@@ -135,12 +140,12 @@ jobs:
       SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION || 'daniel127' }}
       SONAR_PROJECT_KEY: Daniel127_RtMidi.Net
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: true
           fetch-depth: 0   # full history for SonarCloud blame and new-code detection
           persist-credentials: false
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -148,7 +153,7 @@ jobs:
       - name: Build RtMidi (dummy API) for the interop tests
         run: .github/scripts/build-rtmidi-dummy.sh artifacts/test-native
 
-      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         if: env.HAS_SONAR_TOKEN == 'true'
         with:
           distribution: temurin
@@ -164,7 +169,7 @@ jobs:
           dotnet sonarscanner begin \
             /k:"$SONAR_PROJECT_KEY" /o:"$SONAR_ORGANIZATION" \
             /d:sonar.host.url=https://sonarcloud.io \
-            /d:sonar.exclusions="external/**/*" \
+            /d:sonar.exclusions="external/**/*,assets/**/*" \
             /d:sonar.cs.vscoveragexml.reportsPaths="TestResults/*/coverage.xml" \
             /d:sonar.cs.vstest.reportsPaths="TestResults/*/*.trx"
 
@@ -185,7 +190,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: dotnet sonarscanner end
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results
@@ -199,11 +204,11 @@ jobs:
     needs: [native-linux, native-windows, native-macos, test]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: native-*
           path: artifacts/native
@@ -242,7 +247,7 @@ jobs:
             icon.png; do
             unzip -l "$pkg" | grep -q " $f$" || { echo "::error::Missing $f in $pkg"; exit 1; }
           done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: nuget-package
           path: |
@@ -294,11 +299,11 @@ jobs:
     env:
       TEST_FRAMEWORKS: net8.0 net10.0
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: nuget-package
           path: artifacts/nuget
@@ -321,7 +326,7 @@ jobs:
             sudo chmod a+rw /dev/snd/seq
             echo "TEST_ARGS=--loopback --stress 20" >> "$GITHUB_ENV"
           else
-            echo "::warning::/dev/snd/seq is not available on this runner; running the load test only"
+            echo "::notice::/dev/snd/seq is not available on this runner; running the load test only"
             echo "TEST_ARGS=" >> "$GITHUB_ENV"
           fi
 
@@ -336,7 +341,7 @@ jobs:
 
       - name: Set up QEMU
         if: matrix.mode == 'alsa-qemu'
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
       # .NET 8 runs on Ubuntu 20.04 (the oldest glibc the native library supports);
       # .NET 10 needs a newer distro, so it runs on Ubuntu 24.04.
       - name: Run (Linux ARM32 under QEMU)
@@ -386,10 +391,10 @@ jobs:
       id-token: write   # GitHub OIDC token for NuGet/login
       contents: read
     steps:
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: nuget-package
           path: nuget
