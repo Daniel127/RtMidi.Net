@@ -62,6 +62,12 @@ It has breaking changes: see the [migration guide](MIGRATION.md) to update from 
   number.
 - `MidiControlFunction`, the Control Change controllers named as in the MIDI 1.0 specification table (e.g.
   `DamperPedal`, `ChannelVolume`, `AllNotesOff`), and `MidiMessageControlChange.ControlNumber`.
+- `MidiMessagePitchBendChange.Bend`, the bend relative to the centre (-8192 to +8191), the `CenterValue` and
+  `MaxValue` constants, and the `FromValue` and `FromBend` factories.
+- `MidiMessageSongPositionPointer.FromPosition` and `MaxPosition`.
+- General MIDI Level 1: `GeneralMidiProgram` (the 128 instruments, as Program Change values),
+  `GeneralMidiPercussion` (the 47 drum sounds, as note numbers), `GeneralMidiFamily`, and
+  `GeneralMidi.PercussionChannel` and `GeneralMidi.GetFamily`. The names are those of the GM 1 Sound Set.
 - `MidiMessageTimeCodeQuarterFrame` for MIDI Time Code Quarter Frame messages (they threw
   `NotImplementedException`).
 - `MidiApi.WindowsMidiServices`, RtMidi's new Windows API (not compiled into the Windows library yet).
