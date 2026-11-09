@@ -12,9 +12,23 @@ public class MidiTimeCodeTests
     [InlineData(0, 0, 0, 30, MidiTimeCodeRate.Fps30)]
     [InlineData(0, 0, 0, -1, MidiTimeCodeRate.Fps30)]
     [InlineData(0, 0, 0, 0, (MidiTimeCodeRate)4)]
+    [InlineData(0, 1, 0, 0, MidiTimeCodeRate.Fps30DropFrame)]
+    [InlineData(0, 1, 0, 1, MidiTimeCodeRate.Fps30DropFrame)]
+    [InlineData(5, 59, 0, 1, MidiTimeCodeRate.Fps30DropFrame)]
     public void Constructor_OutOfRange_Throws(int hours, int minutes, int seconds, int frames, MidiTimeCodeRate rate)
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new MidiTimeCode(hours, minutes, seconds, frames, rate));
+    }
+
+    [Theory]
+    [InlineData(0, 0, 0, 0)]
+    [InlineData(0, 10, 0, 0)]
+    [InlineData(0, 1, 0, 2)]
+    [InlineData(0, 1, 1, 0)]
+    public void Constructor_DropFrame_AcceptsFramesThatExist(int hours, int minutes, int seconds, int frames)
+    {
+        var timeCode = new MidiTimeCode(hours, minutes, seconds, frames, MidiTimeCodeRate.Fps30DropFrame);
+        Assert.Equal(timeCode, timeCode.AddFrames(0));
     }
 
     [Theory]
@@ -137,6 +151,12 @@ public class MidiTimeCodeTests
     [InlineData(new byte[] { 0xF0, 0x7F, 0x7F, 0x01, 0x01, 0x01, 37, 60, 16, 0xF7 })]            // second 60
     [InlineData(new byte[] { 0xF0, 0x7F, 0x7F, 0x01, 0x01, 0x01, 37, 52, 24, 0xF7 })]            // frame 24 at 24 fps
     [InlineData(new byte[] { 0xF0, 0x7F, 0x7F, 0x01, 0x01, 0x61, 37, 52, 16, 0x00, 0xF7 })]      // too long
+    [InlineData(new byte[] { 0xF0, 0x7F, 0x7F, 0x01, 0x01, 0x00, 0x80, 0x00, 0x00, 0xF7 })]      // status byte as minutes
+    [InlineData(new byte[] { 0xF0, 0x7F, 0x7F, 0x01, 0x01, 0x80, 0x00, 0x00, 0x00, 0xF7 })]      // status byte as hours
+    [InlineData(new byte[] { 0xF0, 0x7F, 0x7F, 0x01, 0x01, 0x00, 0x00, 0x80, 0x00, 0xF7 })]      // status byte as seconds
+    [InlineData(new byte[] { 0xF0, 0x7F, 0x7F, 0x01, 0x01, 0x00, 0x00, 0x00, 0x80, 0xF7 })]      // status byte as frames
+    [InlineData(new byte[] { 0xF0, 0x7F, 0x80, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0xF7 })]      // status byte as device
+    [InlineData(new byte[] { 0xF0, 0x7F, 0x7F, 0x01, 0x01, 0x41, 0x01, 0x00, 0x00, 0xF7 })]      // dropped frame 00:01:00;00
     public void TryGetTimeCode_RejectsOtherMessages(byte[] data)
     {
         Assert.False(new MidiMessageSystemExclusive(data).TryGetTimeCode(out var timeCode));

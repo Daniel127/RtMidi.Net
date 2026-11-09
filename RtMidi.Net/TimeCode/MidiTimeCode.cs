@@ -20,9 +20,11 @@ public readonly record struct MidiTimeCode
     /// <param name="hours">0 to 23.</param>
     /// <param name="minutes">0 to 59.</param>
     /// <param name="seconds">0 to 59.</param>
-    /// <param name="frames">0 to the frame rate minus one (23, 24 or 29).</param>
+    /// <param name="frames">0 to the frame rate minus one (23, 24 or 29). With drop-frame, frames 0 and 1 don't exist
+    /// at second 0 of a minute that isn't a multiple of 10 (e.g. 00:01:00;02 follows 00:00:59;29).</param>
     /// <param name="rate">The frame rate.</param>
-    /// <exception cref="ArgumentOutOfRangeException">A value is out of range, or <paramref name="rate"/> is not defined.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A value is out of range, the frame is one drop-frame skips, or
+    /// <paramref name="rate"/> is not defined.</exception>
     public MidiTimeCode(int hours, int minutes, int seconds, int frames, MidiTimeCodeRate rate)
     {
         if (!Enum.IsDefined(rate)) throw new ArgumentOutOfRangeException(nameof(rate), rate, "Unknown frame rate.");
@@ -30,6 +32,12 @@ public readonly record struct MidiTimeCode
         CheckRange(minutes, 59, nameof(minutes));
         CheckRange(seconds, 59, nameof(seconds));
         CheckRange(frames, GetFramesPerSecond(rate) - 1, nameof(frames));
+        if (IsDroppedFrame(minutes, seconds, frames, rate))
+        {
+            throw new ArgumentOutOfRangeException(nameof(frames), frames,
+                "Drop-frame skips frames 00 and 01 at the start of each minute, except every tenth minute.");
+        }
+
         Hours = hours;
         Minutes = minutes;
         Seconds = seconds;
@@ -132,7 +140,8 @@ public readonly record struct MidiTimeCode
     {
         var rate = (MidiTimeCodeRate)((hoursAndRate >> 5) & 0b11);
         int hours = hoursAndRate & 0x1F, minute = minutes & 0x3F, second = seconds & 0x3F, frame = frames & 0x1F;
-        if (hours > 23 || minute > 59 || second > 59 || frame >= GetFramesPerSecond(rate))
+        if (hours > 23 || minute > 59 || second > 59 || frame >= GetFramesPerSecond(rate) ||
+            IsDroppedFrame(minute, second, frame, rate))
         {
             timeCode = default;
             return false;
@@ -167,6 +176,9 @@ public readonly record struct MidiTimeCode
         var totalSeconds = frameNumber / fps;
         return new MidiTimeCode((int)(totalSeconds / 3600), (int)(totalSeconds / 60 % 60), (int)(totalSeconds % 60), frames, rate);
     }
+
+    private static bool IsDroppedFrame(int minutes, int seconds, int frames, MidiTimeCodeRate rate) =>
+        rate == MidiTimeCodeRate.Fps30DropFrame && seconds == 0 && frames < 2 && minutes % 10 != 0;
 
     private static int GetFramesPerSecond(MidiTimeCodeRate rate) => rate switch
     {

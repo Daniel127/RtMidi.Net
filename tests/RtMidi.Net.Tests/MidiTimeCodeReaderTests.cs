@@ -98,6 +98,29 @@ public class MidiTimeCodeReaderTests
     }
 
     [Fact]
+    public void InvalidFullMessage_DoesNotBreakTheSequence()
+    {
+        var timeCode = new MidiTimeCode(0, 0, 10, 0, MidiTimeCodeRate.Fps24);
+        var pieces = timeCode.ToQuarterFrames();
+        Assert.Null(Feed(pieces.Take(4)));
+
+        Assert.False(_reader.TryDecode(new MidiMessageSystemExclusive([0xF0, 0x7F, 0x7F, 0x01, 0x01, 0x00, 0x80, 0x00, 0x00, 0xF7]),
+            out _));
+
+        Assert.Equal(timeCode.AddFrames(2), Feed(pieces.Skip(4))?.TimeCode);
+    }
+
+    [Fact]
+    public void DroppedFrameInQuarterFrames_GivesNothing()
+    {
+        // 00:01:00;00 doesn't exist in drop-frame: piece 7 carries rate 2 (drop-frame) and hour 0.
+        var pieces = new MidiTimeCode(0, 1, 0, 0, MidiTimeCodeRate.Fps30).ToQuarterFrames().ToArray();
+        pieces[7] = new MidiMessageTimeCodeQuarterFrame(7, 0x04);
+
+        Assert.Null(Feed(pieces));
+    }
+
+    [Fact]
     public void Reset_DropsTheSequence()
     {
         var pieces = new MidiTimeCode(0, 0, 10, 0, MidiTimeCodeRate.Fps24).ToQuarterFrames();

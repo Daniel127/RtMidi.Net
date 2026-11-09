@@ -277,7 +277,7 @@ public record MidiMessageSystemExclusive(byte[] Data) : MidiMessage(MidiMessageT
     public bool TryGetIdentityReply([NotNullWhen(true)] out MidiIdentityReply? reply)
     {
         reply = null;
-        if (Data is not [Start, NonRealTime, var deviceId, 0x06, 0x02, ..] ||
+        if (Data is not [Start, NonRealTime, <= 0x7F and var deviceId, 0x06, 0x02, ..] ||
             !MidiManufacturerId.TryRead(Data.AsSpan(5), out var manufacturer))
         {
             return false;
@@ -302,7 +302,8 @@ public record MidiMessageSystemExclusive(byte[] Data) : MidiMessage(MidiMessageT
     /// <returns><see langword="true"/> if the message is a valid MTC Full Message.</returns>
     public bool TryGetTimeCode(out MidiTimeCode timeCode)
     {
-        if (Data is [Start, RealTime, _, 0x01, 0x01, var hours, var minutes, var seconds, var frames, End])
+        if (Data is [Start, RealTime, <= 0x7F, 0x01, 0x01, <= 0x7F and var hours, <= 0x7F and var minutes,
+                <= 0x7F and var seconds, <= 0x7F and var frames, End])
         {
             return MidiTimeCode.TryCreate(hours, minutes, seconds, frames, out timeCode);
         }
