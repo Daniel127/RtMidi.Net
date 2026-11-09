@@ -165,15 +165,19 @@ jobs:
             /k:"$SONAR_PROJECT_KEY" /o:"$SONAR_ORGANIZATION" \
             /d:sonar.host.url=https://sonarcloud.io \
             /d:sonar.exclusions="external/**/*" \
-            /d:sonar.cs.vscoveragexml.reportsPaths="tests/RtMidi.Net.Tests/bin/Release/*/TestResults/coverage.xml" \
-            /d:sonar.cs.vstest.reportsPaths="tests/RtMidi.Net.Tests/bin/Release/*/TestResults/*.trx"
+            /d:sonar.cs.vscoveragexml.reportsPaths="TestResults/*/coverage.xml" \
+            /d:sonar.cs.vstest.reportsPaths="TestResults/*/*.trx"
 
+      # One run per target framework, each with its own results folder, so the two
+      # coverage reports don't overwrite each other.
       - name: Test
-        run: >
-          dotnet test --project tests/RtMidi.Net.Tests --configuration Release
-          -p:RtMidiTestLibrary=$PWD/artifacts/test-native/librtmidi.so
-          --report-xunit-trx
-          --coverage --coverage-output-format xml --coverage-output coverage.xml
+        run: |
+          for tfm in net8.0 net10.0; do
+            dotnet test --project tests/RtMidi.Net.Tests --configuration Release --framework $tfm \
+              -p:RtMidiTestLibrary=$PWD/artifacts/test-native/librtmidi.so \
+              --results-directory "$PWD/TestResults/$tfm" --report-xunit-trx \
+              --coverage --coverage-output-format xml --coverage-output coverage.xml
+          done
 
       - name: Finish SonarCloud analysis
         if: env.HAS_SONAR_TOKEN == 'true' && !cancelled()
@@ -185,8 +189,7 @@ jobs:
         if: always()
         with:
           name: test-results
-          path: |
-            tests/RtMidi.Net.Tests/bin/Release/*/TestResults/
+          path: TestResults/
           if-no-files-found: warn
 
   # ---------------------------------------------------------------------------
