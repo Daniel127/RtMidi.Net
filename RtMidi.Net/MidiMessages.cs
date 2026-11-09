@@ -118,7 +118,9 @@ public record MidiMessageProgramChange(MidiChannel Channel, byte Program) : Midi
 public record MidiMessageChannelAfterTouch(MidiChannel Channel, byte Pressure) : MidiMessage(MidiMessageType.ChannelPressure);
 
 /// <summary>
-/// Pitch Bend Change, a 14-bit value split in two 7-bit bytes. Use <see cref="Value"/> for the combined value.
+/// Pitch Bend Change, a 14-bit value split in two 7-bit bytes. Use <see cref="Value"/> for the combined value or
+/// <see cref="Bend"/> for the value relative to the centre, and <see cref="FromValue"/> or <see cref="FromBend"/>
+/// to create one from them.
 /// </summary>
 /// <param name="Channel">The MIDI channel.</param>
 /// <param name="Lsb">The low 7 bits of the bend value, 0 to 127.</param>
@@ -126,9 +128,56 @@ public record MidiMessageChannelAfterTouch(MidiChannel Channel, byte Pressure) :
 public record MidiMessagePitchBendChange(MidiChannel Channel, byte Lsb, byte Msb) : MidiMessage(MidiMessageType.PitchBendChange)
 {
     /// <summary>
+    /// The <see cref="Value"/> of the centre position, 8192 (2000H): no bend.
+    /// </summary>
+    public const int CenterValue = 8192;
+
+    /// <summary>
+    /// The largest <see cref="Value"/>, 16383 (3FFFH): maximum bend up.
+    /// </summary>
+    public const int MaxValue = 16383;
+
+    /// <summary>
     /// The 14-bit bend value: 0 to 16383, 8192 is the centre (no bend).
     /// </summary>
     public int Value => ((Msb & 0x7F) << 7) | (Lsb & 0x7F);
+
+    /// <summary>
+    /// The bend relative to the centre: -8192 (maximum down) to +8191 (maximum up), 0 is no bend.
+    /// </summary>
+    /// <remarks>
+    /// How many semitones the maximum bend is depends on the receiver; it can be set with the Pitch Bend
+    /// Sensitivity registered parameter (RPN 0, 2 semitones by default on most devices).
+    /// </remarks>
+    public int Bend => Value - CenterValue;
+
+    /// <summary>
+    /// Creates a Pitch Bend Change from the 14-bit value.
+    /// </summary>
+    /// <param name="channel">The MIDI channel.</param>
+    /// <param name="value">0 to 16383; <see cref="CenterValue"/> is no bend.</param>
+    /// <returns>The message, with the value split in its two 7-bit bytes.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value"/> is outside 0 to 16383.</exception>
+    public static MidiMessagePitchBendChange FromValue(MidiChannel channel, int value)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(value, MaxValue);
+        return new MidiMessagePitchBendChange(channel, (byte)(value & 0x7F), (byte)(value >> 7));
+    }
+
+    /// <summary>
+    /// Creates a Pitch Bend Change from the bend relative to the centre.
+    /// </summary>
+    /// <param name="channel">The MIDI channel.</param>
+    /// <param name="bend">-8192 (maximum down) to +8191 (maximum up); 0 is no bend.</param>
+    /// <returns>The message, with the value split in its two 7-bit bytes.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="bend"/> is outside -8192 to +8191.</exception>
+    public static MidiMessagePitchBendChange FromBend(MidiChannel channel, int bend)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(bend, -CenterValue);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(bend, MaxValue - CenterValue);
+        return FromValue(channel, bend + CenterValue);
+    }
 }
 
 /// <summary>
@@ -299,16 +348,34 @@ public record MidiMessageTimeCodeQuarterFrame(byte Piece, byte Value) : MidiMess
 
 /// <summary>
 /// Song Position Pointer, a 14-bit value (in MIDI beats) split in two 7-bit bytes. Use <see cref="Position"/>
-/// for the combined value.
+/// for the combined value, and <see cref="FromPosition"/> to create one from it.
 /// </summary>
 /// <param name="Lsb">The low 7 bits of the position, 0 to 127.</param>
 /// <param name="Msb">The high 7 bits of the position, 0 to 127.</param>
 public record MidiMessageSongPositionPointer(byte Lsb, byte Msb) : MidiMessage(MidiMessageType.SongPositionPointer)
 {
     /// <summary>
+    /// The largest <see cref="Position"/>, 16383.
+    /// </summary>
+    public const int MaxPosition = 16383;
+
+    /// <summary>
     /// The 14-bit position, in MIDI beats (sixteenth notes) since the start of the song.
     /// </summary>
     public int Position => ((Msb & 0x7F) << 7) | (Lsb & 0x7F);
+
+    /// <summary>
+    /// Creates a Song Position Pointer from the position.
+    /// </summary>
+    /// <param name="position">MIDI beats (sixteenth notes, 6 MIDI clocks each) since the start of the song, 0 to 16383.</param>
+    /// <returns>The message, with the position split in its two 7-bit bytes.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="position"/> is outside 0 to 16383.</exception>
+    public static MidiMessageSongPositionPointer FromPosition(int position)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(position);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(position, MaxPosition);
+        return new MidiMessageSongPositionPointer((byte)(position & 0x7F), (byte)(position >> 7));
+    }
 }
 
 /// <summary>
