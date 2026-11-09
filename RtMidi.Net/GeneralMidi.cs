@@ -30,7 +30,11 @@ public static class GeneralMidi
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="program"/> is above 127.</exception>
     public static GeneralMidiFamily GetFamily(GeneralMidiProgram program)
     {
-        ArgumentOutOfRangeException.ThrowIfGreaterThan((byte)program, (byte)127, nameof(program));
+        if ((byte)program > 127)
+        {
+            throw new ArgumentOutOfRangeException(nameof(program), program, "A program is 0 to 127.");
+        }
+
         return (GeneralMidiFamily)((byte)program / 8);
     }
 }
