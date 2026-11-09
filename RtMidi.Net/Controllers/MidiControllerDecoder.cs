@@ -21,7 +21,8 @@ namespace RtMidi.Net;
 /// <item>A parameter is selected once both bytes of its number have been received (in any order); after that, one
 /// byte is enough to change it. Data Entry applies to the parameter selected last, RPN or NRPN.</item>
 /// <item>Data Entry, Data Increment and Data Decrement produce nothing while no parameter or the null parameter
-/// (7FH 7FH) is selected, and a Data Entry LSB needs the MSB sent after the parameter was selected.</item>
+/// (7FH 7FH) is selected. A Data Entry LSB needs a Data Entry MSB for the same parameter, sent after the last Data
+/// Increment or Decrement (a step may change the MSB).</item>
 /// <item>An MSB resets the LSB of its controller; an LSB without a previous MSB produces nothing.</item>
 /// <item>Reset All Controllers (121) deselects the parameter, and System Reset forgets every channel.</item>
 /// </list>
@@ -156,6 +157,8 @@ public sealed class MidiControllerDecoder
             case MidiControlFunction.DataDecrement:
                 if (!state.TryGetParameter(out kind, out parameterMsb, out parameterLsb)) return null;
                 var steps = control == (byte)MidiControlFunction.DataIncrement ? 1 : -1;
+                // The value changed in a way this decoder doesn't track: a later LSB must not complete the old MSB.
+                state.DataEntryMsb = null;
                 return new MidiParameterIncrement(channel, kind, parameterMsb, parameterLsb, steps, value);
             case MidiControlFunction.ResetAllControllers:
                 state.ResetAllControllers();
@@ -189,11 +192,13 @@ public sealed class MidiControllerDecoder
         public void SelectNumberByte(MidiParameterKind kind, byte? msb, byte? lsb)
         {
             var number = kind == MidiParameterKind.Registered ? _registered : _nonRegistered;
+            var changed = _selectedKind != kind || (msb is not null && number[0] != msb) || (lsb is not null && number[1] != lsb);
             if (msb is not null) number[0] = msb;
             if (lsb is not null) number[1] = lsb;
             _selectedKind = kind;
-            // The Data Entry MSB belongs to the previous selection: an LSB must not complete it.
-            DataEntryMsb = null;
+            // The Data Entry MSB belongs to the previous selection: an LSB must not complete it. Selecting the same
+            // parameter again keeps it.
+            if (changed) DataEntryMsb = null;
         }
 
         public bool TryGetParameter(out MidiParameterKind kind, out byte msb, out byte lsb)

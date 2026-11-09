@@ -95,6 +95,40 @@ public class MidiControllerDecoderTests
         Assert.Null(Feed(Cc(38, 50)));
     }
 
+    [Fact]
+    public void DataEntryLsb_KeepsTheMsb_WhenTheSameParameterIsSelectedAgain()
+    {
+        Feed(Cc(101, 0));
+        Feed(Cc(100, 1));
+        Feed(Cc(6, 64));
+        Feed(Cc(100, 1));
+        Feed(Cc(101, 0));
+
+        var change = Assert.IsType<MidiParameterChange>(Feed(Cc(38, 5)));
+        Assert.Equal(new MidiParameterChange(Channel, MidiParameterKind.Registered, 0, 1, 64, 5), change);
+
+        // Switching to the NRPN with the same number is another parameter.
+        Feed(Cc(99, 0));
+        Feed(Cc(98, 1));
+        Assert.Null(Feed(Cc(38, 5)));
+    }
+
+    [Theory]
+    [InlineData(96)]
+    [InlineData(97)]
+    public void DataEntryLsb_AfterIncrementOrDecrement_NeedsANewMsb(byte control)
+    {
+        Feed(Cc(101, 0));
+        Feed(Cc(100, 1));
+        Feed(Cc(6, 64));
+        Assert.IsType<MidiParameterIncrement>(Feed(Cc(control, 0)));
+
+        // The MSB may have changed with the step: an LSB alone must not send the old one back.
+        Assert.Null(Feed(Cc(38, 0)));
+        Feed(Cc(6, 65));
+        Assert.Equal(65 << 7, Assert.IsType<MidiParameterChange>(Feed(Cc(38, 0))).Value);
+    }
+
     [Theory]
     [InlineData(96, 1)]
     [InlineData(97, -1)]
