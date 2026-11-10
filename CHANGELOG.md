@@ -68,6 +68,10 @@ It has breaking changes: see the [migration guide](MIGRATION.md) to update from 
 - General MIDI Level 1: `GeneralMidiProgram` (the 128 instruments, as Program Change values),
   `GeneralMidiPercussion` (the 47 drum sounds, as note numbers), `GeneralMidiFamily`, and
   `GeneralMidi.PercussionChannel` and `GeneralMidi.GetFamily`. The names are those of the GM 1 Sound Set.
+- Registered and non-registered parameters (RPN/NRPN) and 14-bit controllers: `MidiRegisteredParameter` (the
+  registered parameters of the MIDI 1.0 table, e.g. `PitchBendSensitivity`), `MidiParameterMessages`, which builds
+  the Control Change sequences that set them, and the experimental `MidiControllerDecoder`, which assembles them from
+  received Control Changes following the MIDI 1.0 specification, RP-015 and RP-018 (diagnostic `RTMIDI001`).
 - `MidiMessageTimeCodeQuarterFrame` for MIDI Time Code Quarter Frame messages (they threw
   `NotImplementedException`).
 - MIDI Time Code: `MidiTimeCode` (hours, minutes, seconds, frames and `MidiTimeCodeRate`, including 30 fps
