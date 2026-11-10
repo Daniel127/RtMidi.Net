@@ -108,6 +108,27 @@ public class SystemExclusiveTests
         if (!message.IsUniversal) Assert.Null(message.DeviceId);
     }
 
+    [Theory]
+    [InlineData(new byte[] { 0xF0, 0x7E, 0x10, 0x7F, 0x05, 0xF7 }, (byte)0x7F)] // ACK, packet 5
+    [InlineData(new byte[] { 0xF0, 0x7E, 0x10, 0x7B, 0x05, 0xF7 }, (byte)0x7B)] // End Of File
+    [InlineData(new byte[] { 0xF0, 0x7E, 0x10, 0x01, 0x05, 0x00, 0xF7 }, (byte)0x01)] // Sample Dump Header
+    [InlineData(new byte[] { 0xF0, 0x7E, 0x10, 0x02, 0x05, 0xF7 }, (byte)0x02)] // Sample Data Packet
+    [InlineData(new byte[] { 0xF0, 0x7E, 0x10, 0x03, 0x05, 0x00, 0xF7 }, (byte)0x03)] // Sample Dump Request
+    public void SubId2_IsNull_ForMessagesWithoutIt(byte[] data, byte subId1)
+    {
+        var message = new MidiMessageSystemExclusive(data);
+        Assert.Equal(subId1, message.SubId1);
+        Assert.Null(message.SubId2);
+    }
+
+    [Fact]
+    public void SubId2_RealTime_IsAlwaysRead()
+    {
+        // MIDI Machine Control (Real Time 06H) has a command byte as sub-ID#2.
+        Assert.Equal((byte)0x02, new MidiMessageSystemExclusive([0xF0, 0x7F, 0x7F, 0x06, 0x02, 0xF7]).SubId2);
+        Assert.Equal((byte)0x01, new MidiMessageSystemExclusive([0xF0, 0x7F, 0x7F, 0x01, 0x01, 0xF7]).SubId2);
+    }
+
     [Fact]
     public void Factories_CreateUniversalMessages()
     {
@@ -190,6 +211,18 @@ public class SystemExclusiveTests
         Assert.NotEqual(a, c);
         Assert.False(a.Equals(null));
         Assert.False(a.Equals((object)new MidiMessageUnknown([0xF0, 0x43, 0x10, 0xF7])));
+    }
+
+    [Fact]
+    public void Equality_ComparesTheTypeToo()
+    {
+        var sysEx = new MidiMessageSystemExclusive([0xF0, 0x43, 0x10, 0xF7]);
+        var otherType = sysEx with { Type = MidiMessageType.TimingClock };
+        Assert.NotEqual(sysEx, otherType);
+        Assert.Equal(sysEx, otherType with { Type = MidiMessageType.SystemExclusive });
+
+        var unknown = new MidiMessageUnknown([0xF4]);
+        Assert.NotEqual(unknown, unknown with { Type = MidiMessageType.TimingClock });
     }
 
     [Fact]

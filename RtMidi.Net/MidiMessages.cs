@@ -35,19 +35,18 @@ public record MidiMessage(MidiMessageType Type);
 /// <param name="MessageData">The raw bytes of the message, as received.</param>
 public record MidiMessageUnknown(byte[] MessageData) : MidiMessage(MidiMessageType.Unknown)
 {
-    /// <summary>Compares the bytes of <see cref="MessageData"/>.</summary>
+    /// <summary>Compares the type and the bytes of <see cref="MessageData"/>.</summary>
     /// <param name="other">The other message.</param>
     /// <returns><see langword="true"/> if both have the same bytes.</returns>
     public virtual bool Equals(MidiMessageUnknown? other) =>
         ReferenceEquals(this, other) ||
-        (other is not null && EqualityContract == other.EqualityContract &&
-         MessageData.AsSpan().SequenceEqual(other.MessageData));
+        (base.Equals(other) && MessageData.AsSpan().SequenceEqual(other.MessageData));
 
     /// <inheritdoc />
     public override int GetHashCode()
     {
         var hash = new HashCode();
-        hash.Add(EqualityContract);
+        hash.Add(base.GetHashCode());
         hash.AddBytes(MessageData);
         return hash.ToHashCode();
     }
@@ -221,8 +220,14 @@ public record MidiMessageSystemExclusive(byte[] Data) : MidiMessage(MidiMessageT
     /// <summary>The sub-ID#1 of a universal message (its category, e.g. 06H General Information), or <see langword="null"/>.</summary>
     public byte? SubId1 => UniversalByte(3);
 
-    /// <summary>The sub-ID#2 of a universal message (the message in its category), or <see langword="null"/>.</summary>
-    public byte? SubId2 => UniversalByte(4);
+    /// <summary>
+    /// The sub-ID#2 of a universal message (the message in its category), or <see langword="null"/>. The Non-Real Time
+    /// Sample Dump messages (sub-ID#1 01H, 02H, 03H) and the handshaking messages (7BH to 7FH) have no sub-ID#2, so
+    /// it is <see langword="null"/> for them (MIDI 1.0 Detailed Specification, table of Universal System Exclusive
+    /// messages).
+    /// </summary>
+    public byte? SubId2 =>
+        IsUniversalRealTime || SubId1 is not (null or 0x01 or 0x02 or 0x03 or >= 0x7B) ? UniversalByte(4) : null;
 
     /// <summary>
     /// Identity Request to every device: <c>F0 7E 7F 06 01 F7</c>. Devices that support it answer with an Identity Reply
@@ -312,18 +317,18 @@ public record MidiMessageSystemExclusive(byte[] Data) : MidiMessage(MidiMessageT
         return false;
     }
 
-    /// <summary>Compares the bytes of <see cref="Data"/>.</summary>
+    /// <summary>Compares the type and the bytes of <see cref="Data"/>.</summary>
     /// <param name="other">The other message.</param>
     /// <returns><see langword="true"/> if both have the same bytes.</returns>
     public virtual bool Equals(MidiMessageSystemExclusive? other) =>
         ReferenceEquals(this, other) ||
-        (other is not null && EqualityContract == other.EqualityContract && Data.AsSpan().SequenceEqual(other.Data));
+        (base.Equals(other) && Data.AsSpan().SequenceEqual(other.Data));
 
     /// <inheritdoc />
     public override int GetHashCode()
     {
         var hash = new HashCode();
-        hash.Add(EqualityContract);
+        hash.Add(base.GetHashCode());
         hash.AddBytes(Data);
         return hash.ToHashCode();
     }
