@@ -60,6 +60,27 @@ if (message is MidiMessageNote { Type: MidiMessageType.NoteOn } note)
     Console.WriteLine($"{note.Note.GetName()} velocity {note.Velocity}");
 ```
 
+## Finding a device by name
+
+Port numbers depend on the order the system lists the devices in, and the names RtMidi gives the ports depend on the platform, so the most reliable way to find a device is by part of its name. ``MidiManager.FindInputDevice`` and ``FindOutputDevice`` ignore case and return the port whose name is exactly the text if there is one, otherwise the first port whose name contains it, or ``null``:
+
+```csharp
+var input = MidiManager.FindInputDevice("loopMIDI")
+    ?? throw new InvalidOperationException("loopMIDI is not running");
+var synth = MidiManager.FindOutputDevice("GS Wavetable");   // null if there is none
+
+using var inputClient = new MidiInputClient(input);
+inputClient.Open();
+```
+
+What the port names look like:
+
+| Platform (API) | Example | Notes |
+|:--|:--|:--|
+| Linux (ALSA) | ``USB Keyboard:USB Keyboard MIDI 1 20:0`` | Client name, port name and the ALSA ``client:port`` address. The address can change when the device is reconnected or the system restarts, so search for the name without it. |
+| Windows (WinMM) | ``loopMIDI Port 0`` (input), ``loopMIDI Port 1`` (output) | RtMidi adds the port number so that devices with the same name can be told apart. Inputs and outputs are numbered separately, so the same device can have a different number in each list, and the number changes when devices are added or removed. |
+| macOS (CoreMIDI) | ``IAC Driver Bus 1`` | The name the device or driver gives itself; it doesn't change between runs. |
+
 ## Note names and octaves
 
 ``MidiNote`` uses scientific pitch notation (ISO): MIDI note 60 (middle C) is ``C4``, 69 (A440) is ``A4``, 0 is ``C-1`` and 127 is ``G9``. ``MusicOctave`` follows it too (``MusicOctave.Octave4`` is the octave of middle C).
