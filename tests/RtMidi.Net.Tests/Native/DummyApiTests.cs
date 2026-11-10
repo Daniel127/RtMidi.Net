@@ -51,6 +51,13 @@ public class DummyApiTests
     }
 
     [NativeFact]
+    public void FindDevice_WithoutPorts_ReturnsNull()
+    {
+        Assert.Null(MidiManager.FindInputDevice("loopMIDI"));
+        Assert.Null(MidiManager.FindOutputDevice("loopMIDI", MidiApi.RtMidiDummy));
+    }
+
+    [NativeFact]
     public void GetDeviceInfo_UnknownPort_Throws()
     {
         var exception = Assert.Throws<ArgumentOutOfRangeException>(() => MidiManager.GetDeviceInfo(0, MidiDeviceType.Input));

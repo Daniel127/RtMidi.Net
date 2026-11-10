@@ -154,3 +154,27 @@ fit MIDI (for example a velocity of 200) now throw `ArgumentOutOfRangeException`
 - Errors from the native library throw `RtMidiException`.
 - Received messages that are malformed come as `MidiMessageUnknown` instead of throwing, and MIDI Time Code
   Quarter Frames come as `MidiMessageTimeCodeQuarterFrame` instead of throwing `NotImplementedException`.
+- `MidiMessageSystemExclusive` and `MidiMessageUnknown` are equal when they have the same bytes (in 1.x only
+  the same array instance was equal). This matters if you use them as dictionary keys or in sets.
+
+## 11. New in 2.0
+
+Nothing here is needed to migrate, but it can replace code you wrote yourself:
+
+- Find ports by name instead of by number, which changes between runs and platforms:
+  `MidiManager.FindInputDevice("loopMIDI")` (see the README for the port names of each platform).
+- `MidiNote.Parse("C#4")`, `MidiMessagePitchBendChange.FromBend(channel, -2048)`,
+  `MidiMessageSongPositionPointer.FromPosition(...)`, and the General MIDI enums (`GeneralMidiProgram`,
+  `GeneralMidiPercussion`, `GeneralMidi.PercussionChannel`).
+- `MidiParameterMessages` to send RPN/NRPN and 14-bit controllers, `MidiTimeCode` for MIDI Time Code, and
+  `MidiMessageSystemExclusive.IdentityRequest()`, `GeneralMidiSystemOn()` and `TryGetIdentityReply`.
+
+`MidiControllerDecoder` (RPN/NRPN and 14-bit controllers received) and `MidiTimeCodeReader` (MIDI Time Code
+received) are experimental: they may change in a minor version. Using them is a compile error (`RTMIDI001` and
+`RTMIDI002`) until you accept that by suppressing the diagnostics in the project:
+
+```xml
+<PropertyGroup>
+  <NoWarn>$(NoWarn);RTMIDI001;RTMIDI002</NoWarn>
+</PropertyGroup>
+```

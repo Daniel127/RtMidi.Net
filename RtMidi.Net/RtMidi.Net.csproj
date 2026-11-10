@@ -6,6 +6,8 @@
         <!-- LibraryImport (source-generated P/Invoke) and function pointers for the native callback -->
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <IsAotCompatible>true</IsAotCompatible>
+        <!-- Version of local and untagged builds; a vX.Y.Z tag overrides it when publishing (ci-release.yml). -->
+        <Version>2.0.0</Version>
 
         <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
         <PackageReadmeFile>README.md</PackageReadmeFile>

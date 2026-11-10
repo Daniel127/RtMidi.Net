@@ -10,6 +10,8 @@
         <OutputType>Exe</OutputType>
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
+        <!-- The tests cover the experimental APIs too (controller decoder and MIDI Time Code reader). -->
+        <NoWarn>$(NoWarn);RTMIDI001;RTMIDI002</NoWarn>
     </PropertyGroup>
 
     <!--
