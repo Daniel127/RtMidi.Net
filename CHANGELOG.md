@@ -4,7 +4,7 @@ All notable changes to RtMidi.Net are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [Semantic Versioning](https://semver.org/).
 
-## [2.0.0] - Unreleased
+## [2.0.0] - 2026-11-10
 
 Version 2.0 targets current .NET, ships the native RtMidi libraries in the package, cleans up the API and adds
 helpers for the MIDI 1.0 specification (General MIDI, RPN/NRPN, 14-bit controllers, MIDI Time Code and universal
@@ -120,5 +120,5 @@ until you suppress its diagnostic (e.g. `<NoWarn>$(NoWarn);RTMIDI001;RTMIDI002</
 
 - Updated to RtMidi 6.0.
 
-[2.0.0]: https://github.com/Daniel127/RtMidi.Net/compare/v1.3.0...HEAD
+[2.0.0]: https://github.com/Daniel127/RtMidi.Net/compare/v1.3.0...v2.0.0
 [1.3.0]: https://github.com/Daniel127/RtMidi.Net/releases/tag/v1.3.0
