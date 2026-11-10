@@ -19,6 +19,11 @@ namespace RtMidi.Net;
 /// <item>A Full Message gives the time at once and drops the current sequence.</item>
 /// </list>
 /// <para>
+/// <see cref="MidiInputClient"/> ignores timing and System Exclusive messages by default, so set
+/// <see cref="MidiInputClient.IgnoreTimeMessages"/> (Quarter Frames) and <see cref="MidiInputClient.IgnoreSysexMessages"/>
+/// (Full Messages) to <see langword="false"/> before reading MIDI Time Code.
+/// </para>
+/// <para>
 /// The way a reader handles sequences that break or change direction is not fully defined by the specification,
 /// which is why this class is experimental: its rules or shape may change in a minor version. Not thread-safe: use
 /// one instance per input, from one thread (e.g. the <see cref="MidiInputClient.MessageReceived"/> handler).
@@ -27,6 +32,8 @@ namespace RtMidi.Net;
 /// <example>
 /// <code>
 /// var reader = new MidiTimeCodeReader();
+/// input.IgnoreTimeMessages = false;  // Quarter Frames
+/// input.IgnoreSysexMessages = false; // Full Messages
 /// input.MessageReceived += (_, e) =&gt;
 /// {
 ///     if (reader.TryDecode(e.Message, out var update))

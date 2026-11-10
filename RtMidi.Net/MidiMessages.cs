@@ -275,7 +275,8 @@ public record MidiMessageSystemExclusive(byte[] Data) : MidiMessage(MidiMessageT
 
     /// <summary>
     /// Reads an Identity Reply: <c>F0 7E &lt;device ID&gt; 06 02 mm ff ff dd dd ss ss ss ss F7</c>, where the manufacturer
-    /// ID <c>mm</c> has one or three bytes.
+    /// ID <c>mm</c> has one or three bytes. To receive the reply, set
+    /// <see cref="MidiInputClient.IgnoreSysexMessages"/> to <see langword="false"/>.
     /// </summary>
     /// <param name="reply">The reply, or <see langword="null"/>.</param>
     /// <returns><see langword="true"/> if the message is an Identity Reply.</returns>
@@ -302,6 +303,7 @@ public record MidiMessageSystemExclusive(byte[] Data) : MidiMessage(MidiMessageT
 
     /// <summary>
     /// Reads an MTC Full Message: <c>F0 7F &lt;device ID&gt; 01 01 hr mn sc fr F7</c>.
+    /// To receive it, set <see cref="MidiInputClient.IgnoreSysexMessages"/> to <see langword="false"/>.
     /// </summary>
     /// <param name="timeCode">The time, or the default value.</param>
     /// <returns><see langword="true"/> if the message is a valid MTC Full Message.</returns>
